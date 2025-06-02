@@ -2,29 +2,50 @@ security:
     password_hashers:
         App\Entity\User:
             algorithm: auto
+
     providers:
         app_user_provider:
             entity:
                 class: App\Entity\User
                 property: email
+        # used to reload user from session & other features (e.g. switch_user)
     firewalls:
         dev:
-            pattern:   ^/(_(profiler|wdt)|css|images|js)/
+            pattern: ^/(_(profiler|wdt)|css|images|js)/
             security: false
+
+        # 1) Firewall pour l’API login (JWT / json_login)
+        api_login:
+            pattern: ^/api/login_check$
+            stateless: true
+            json_login:
+                check_path: /api/login_check
+                username_path: email
+                password_path: password
+                success_handler: lexik_jwt_authentication.handler.authentication_success
+                failure_handler: lexik_jwt_authentication.handler.authentication_failure
+
+        # 2) Firewall pour toutes les routes /api (JWT uniquement)
         api:
-            pattern:   ^/api
+            pattern: ^/api
             stateless: true
             provider: app_user_provider
             jwt: ~
+
+        # 3) Firewall pour la partie “front” (form_login, etc.)
         main:
             provider: app_user_provider
+            lazy: true # Permet d’autoriser l’accès anonyme sans "anonymous: true"
             form_login:
                 login_path: login
                 check_path: login
             logout: true
     access_control:
-        # Toute URL commençant par /api requiert d’être authentifié en full JWT
+        # Autoriser tout le monde à taper sur /api/login_check en POST
+        - { path: ^/api/login_check, roles: IS_AUTHENTICATED_ANONYMOUSLY }
+        # Toute route commençant par /api (autre que login_check) requiert un JWT valide
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
+        # Par défaut, le firewall "main" permettra une page de login à /login, etc.
 
 when@test:
     security:
