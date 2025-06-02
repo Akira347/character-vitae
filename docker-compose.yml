@@ -8,7 +8,7 @@ services:
       - .:/srv/app:cached
     environment:
       APP_ENV: dev
-      DATABASE_URL: "pgsql://symfony:symfony@db:5432/symfony"
+      DATABASE_URL: "pgsql://postgres:postgres@db:5432/character_vitae"
     depends_on:
       - db
     extra_hosts:
@@ -17,9 +17,9 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: symfony
-      POSTGRES_PASSWORD: symfony
-      POSTGRES_DB: symfony
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: character_vitae
     volumes:
       - db-data:/var/lib/postgresql/data
     ports:
