@@ -52,5 +52,9 @@ jobs:
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse
 
-      - name: Run PHP-CS-Fixer (dry run)
-        run: vendor/bin/php-cs-fixer fix --dry-run --diff
+      - name: Run PHP-CS-Fixer
+        run: |
+          vendor/bin/php-cs-fixer fix --diff --dry-run --format=checkstyle || (
+            echo "::error::PHP-CS-Fixer a détecté des violations de style. Merci de corriger avant de valider."
+            exit 1
+          )
