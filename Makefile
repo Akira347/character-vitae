@@ -10,4 +10,4 @@ stan:
 	vendor/bin/phpstan analyse
 
 test:
-	php bin/phpunit
+	APP_ENV=test php bin/phpunit --colors=never
