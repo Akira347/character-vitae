@@ -43,7 +43,7 @@ jobs:
 
             - name: Run Doctrine migrations
               env:
-                  DATABASE_URL: 'pgsql://postgres:postgres@127.0.0.1:5432/symfony_test'
+                  DATABASE_URL: 'pgsql://cv_user:cv_pass@127.0.0.1:5432/character_vitae_test'
               run: php bin/console doctrine:migrations:migrate --no-interaction
 
             - name: Run tests
