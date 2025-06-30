@@ -1,60 +1,62 @@
 name: CI
 
 on:
-  push:
-    branches: [ develop, main ]
-  pull_request:
-    branches: [ develop ]
+    push:
+        branches: [develop, main]
+    pull_request:
+        branches: [develop]
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+    build-and-test:
+        runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: symfony
-          POSTGRES_PASSWORD: symfony
-          POSTGRES_DB: symfony_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+        services:
+            postgres:
+                image: postgres:15
+                env:
+                    POSTGRES_USER: cv_user
+                    POSTGRES_PASSWORD: cv_pass
+                    POSTGRES_DB: character_vitae_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          extensions: mbstring, intl, pdo_pgsql, xml
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.3'
+                  extensions: mbstring, intl, pdo_pgsql, xml
 
-      - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist
+            - name: Install Composer dependencies
+              run: composer install --no-interaction --prefer-dist
 
-      - name: Copy .env to .env.test
-        run: cp .env .env.test
+            - name: Create test database
+              run: php bin/console doctrine:database:create --env=test --if-not-exists
 
-      - name: Run Doctrine migrations
-        env:
-          DATABASE_URL: "pgsql://symfony:symfony@127.0.0.1:5432/symfony_test"
-        run: php bin/console doctrine:migrations:migrate --no-interaction
+            - name: Run Doctrine migrations
+              env:
+                  DATABASE_URL: 'pgsql://cv_user:cv_pass@127.0.0.1:5432/character_vitae_test'
+              run: php bin/console doctrine:migrations:migrate --no-interaction
 
-      - name: Run tests
-        run: php bin/phpunit --coverage-text
+            - name: Run tests
+              env:
+                  APP_ENV: test
+              run: php bin/phpunit --colors=never --testsuite "Project Test Suite"
 
-      - name: Run PHPStan
-        run: vendor/bin/phpstan analyse
+            - name: Run PHPStan
+              run: vendor/bin/phpstan analyse
 
-      - name: Run PHP-CS-Fixer
-        run: |
-          vendor/bin/php-cs-fixer fix --diff --dry-run --format=checkstyle || (
-            echo "::error::PHP-CS-Fixer a détecté des violations de style. Merci de corriger avant de valider."
-            exit 1
-          )
+            - name: Run PHP-CS-Fixer
+              run: |
+                  vendor/bin/php-cs-fixer fix --diff --dry-run --format=checkstyle || (
+                    echo "::error::PHP-CS-Fixer a détecté des violations de style. Merci de corriger avant de valider."
+                    exit 1
+                  )

@@ -18,6 +18,9 @@ return (new Config())
         'phpdoc_order' => true,
         'phpdoc_no_empty_return' => false,
         'native_function_invocation' => ['include' => ['@all']],
+        'yoda_style' => false,
+        'align_multiline_comment' => true,
+        'line_ending' => true,
     ])
     ->setFinder($finder)
     ->setRiskyAllowed(true)
