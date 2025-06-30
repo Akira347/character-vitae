@@ -47,7 +47,9 @@ jobs:
               run: php bin/console doctrine:migrations:migrate --no-interaction
 
             - name: Run tests
-              run: php bin/phpunit --colors=never --testsuite Project\ Test\ Suite --env=test
+              env:
+                  APP_ENV: test
+              run: php bin/phpunit --colors=never --testsuite "Project Test Suite"
 
             - name: Run PHPStan
               run: vendor/bin/phpstan analyse
