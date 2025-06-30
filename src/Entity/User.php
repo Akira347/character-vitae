@@ -66,11 +66,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      * A visual identifier that represents this user.
      *
      * @see UserInterface
+     *
+     * @return non-empty-string
      */
-    /** @phpstan-return non-empty-string */
     public function getUserIdentifier(): string
     {
-        return (string) $this->email;
+        if ($this->email === null || $this->email === '') {
+            throw new \LogicException('User email must not be null or empty.');
+        }
+
+        return $this->email;
     }
 
     /**
