@@ -3,3 +3,6 @@ parameters:
     paths:
         - src
         - tests
+    ignoreErrors:
+      - '#Property App\\Entity\\Character::\$id \(int|null\)#'
+      - '#Property App\\Entity\\User::\$id \(int|null\)#'

@@ -4,45 +4,45 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
-    volumes:
-      - .:/srv/app:cached
     environment:
       APP_ENV: dev
-      DATABASE_URL: "pgsql://postgres:postgres@db:5432/character_vitae"
+      DATABASE_URL: "pgsql://cv_user:cv_pass@db:5432/character_vitae"
     depends_on:
       - db
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - .:/srv/app:cached
 
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: cv_user
+      POSTGRES_PASSWORD: cv_pass
       POSTGRES_DB: character_vitae
-    volumes:
-      - db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
 
   mailer:
     image: axllent/mailpit
-    ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Interface web (accessible via localhost:8025)
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - "1025:1025"
+      - "8025:8025"
 
   web:
     image: nginx:latest
+    depends_on:
+      - app
     ports:
       - "8000:80"
     volumes:
       - .:/srv/app:cached
       - ./docker/nginx/conf.d:/etc/nginx/conf.d
-    depends_on:
-      - app
 
 volumes:
   db-data:
