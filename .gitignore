@@ -50,3 +50,15 @@ ehthumbs.db
 
 # Logs et caches divers
 *.log
+
+# Node modules
+/front/node_modules/
+
+# Build output
+/front/dist/
+/front/build/
+
+# Logs
+/front/npm-debug.log*
+/front/arn-debug.log*
+/front/yarn-error.log*
