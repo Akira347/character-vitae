@@ -61,8 +61,10 @@ jobs:
               uses: actions/setup-node@v3
               with:
                   node-version: '18'
-            - name: Install front dependencies
+            - name: Installer les dépendances front (skip Husky)
               working-directory: front
+              env:
+                  HUSKY_SKIP_INSTALL: 1
               run: npm ci
             - name: Run ESLint
               working-directory: front
