@@ -7,7 +7,7 @@ on:
         branches: [develop]
 
 jobs:
-    build-and-test:
+    back:
         runs-on: ubuntu-latest
 
         services:
@@ -24,39 +24,54 @@ jobs:
                     --health-interval 10s
                     --health-timeout 5s
                     --health-retries 5
-
         steps:
-            - name: Checkout code
-              uses: actions/checkout@v3
-
+            - uses: actions/checkout@v3
             - name: Setup PHP
               uses: shivammathur/setup-php@v2
               with:
                   php-version: '8.3'
                   extensions: mbstring, intl, pdo_pgsql, xml
-
-            - name: Install Composer dependencies
+            - name: Install PHP dependencies
               run: composer install --no-interaction --prefer-dist
-
             - name: Create test database
               run: php bin/console doctrine:database:create --env=test --if-not-exists
-
             - name: Run Doctrine migrations
               env:
                   DATABASE_URL: 'pgsql://cv_user:cv_pass@127.0.0.1:5432/character_vitae_test'
               run: php bin/console doctrine:migrations:migrate --no-interaction
-
-            - name: Run tests
+            - name: Run PHPUnit
               env:
                   APP_ENV: test
               run: php bin/phpunit --colors=never --testsuite "Project Test Suite"
-
             - name: Run PHPStan
               run: vendor/bin/phpstan analyse
-
             - name: Run PHP-CS-Fixer
               run: |
                   vendor/bin/php-cs-fixer fix --diff --dry-run --format=checkstyle || (
-                    echo "::error::PHP-CS-Fixer a détecté des violations de style. Merci de corriger avant de valider."
+                    echo "::error::PHP-CS-Fixer found style violations."
                     exit 1
                   )
+
+    front:
+        runs-on: ubuntu-latest
+        needs: back
+        steps:
+            - uses: actions/checkout@v3
+            - name: Setup Node.js
+              uses: actions/setup-node@v3
+              with:
+                  node-version: '18'
+            - name: Installer les dépendances front (skip Husky)
+              working-directory: front
+              env:
+                  HUSKY_SKIP_INSTALL: 1
+              run: npm ci
+            - name: Run ESLint
+              working-directory: front
+              run: npm run lint
+            - name: Run Prettier check
+              working-directory: front
+              run: npm run format -- --check
+            - name: Build front
+              working-directory: front
+              run: npm run build

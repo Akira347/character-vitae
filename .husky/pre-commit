@@ -1,0 +1,7 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Aller dans front pour lancer lint et format
+cd front
+npm run lint
+npm run format
