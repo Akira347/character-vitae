@@ -62,3 +62,7 @@ ci:
 	@echo "────────────────────────────────────────────"
 	@$(MAKE) front-build
 	@echo "✅ CI locale terminée avec succès"
+
+front-dev:
+	@echo "▶️  Lancer le serveur de développement front (Vite)"
+	@npm --prefix $(FRONT_DIR) run dev
