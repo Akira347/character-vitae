@@ -1,0 +1,22 @@
+.dashboard-canvas {
+    min-height: 60vh;
+    background: #f9f9f9;
+    border: 2px dashed #ccc;
+    padding: 1rem;
+}
+
+/* Grid de sections */
+.canvas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+/* Conteneur pour chaque section ajoutée */
+.canvas-item {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    text-align: center;
+}
