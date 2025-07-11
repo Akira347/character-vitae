@@ -69,7 +69,7 @@ DragDropContainer.propTypes = {
       id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
       type: PropTypes.string,
       content: PropTypes.any,
-    })
+    }),
   ).isRequired,
   setSections: PropTypes.func.isRequired,
   children: PropTypes.node.isRequired,

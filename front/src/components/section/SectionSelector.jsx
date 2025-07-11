@@ -18,12 +18,8 @@ export default function SectionSelector({ onAddSection }) {
   return (
     <div className="p-3 bg-white shadow-sm">
       <h5>Ajouter une section</h5>
-      {SECTION_TYPES.map(type => (
-        <SectionSelectorItem
-          key={type}
-          type={type}
-          onClick={onAddSection}
-        />
+      {SECTION_TYPES.map((type) => (
+        <SectionSelectorItem key={type} type={type} onClick={onAddSection} />
       ))}
     </div>
   );

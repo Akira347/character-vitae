@@ -4,12 +4,12 @@ import { Card } from 'react-bootstrap';
 import { User, BookOpen, Clipboard, Phone, Puzzle, Star } from 'lucide-react';
 
 const ICONS = {
-    Identité: User,
-    Lore: BookOpen,
-    Expériences: Clipboard,
-    Contact: Phone,
-    Formations: Puzzle,
-    Certifications: Star,
+  Identité: User,
+  Lore: BookOpen,
+  Expériences: Clipboard,
+  Contact: Phone,
+  Formations: Puzzle,
+  Certifications: Star,
   // …
 };
 
@@ -22,9 +22,7 @@ export default function PreviewCard({ type, children }) {
         <Icon size={18} className="me-2" />
         <strong>{type}</strong>
       </Card.Header>
-      <Card.Body>
-        {children /* ici le contenu de la section (texte, liste…) */}
-      </Card.Body>
+      <Card.Body>{children /* ici le contenu de la section (texte, liste…) */}</Card.Body>
     </Card>
   );
 }

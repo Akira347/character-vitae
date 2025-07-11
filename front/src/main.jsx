@@ -5,7 +5,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import NotFoundPage  from './pages/NotFoundPage';
+import NotFoundPage from './pages/NotFoundPage';
 import Layout from './components/structure/Layout';
 import HomePage from './pages/HomePage';
 import Dashboard from './pages/Dashboard';
@@ -22,5 +22,5 @@ root.render(
         </Route>
       </Routes>
     </BrowserRouter>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
