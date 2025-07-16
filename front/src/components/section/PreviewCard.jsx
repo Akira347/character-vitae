@@ -1,16 +1,30 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Card } from 'react-bootstrap';
-import { User, BookOpen, Clipboard, Phone, Puzzle, Star } from 'lucide-react';
+import {
+  User,
+  BookOpen,
+  Phone,
+  Puzzle,
+  Star,
+  Sword,
+  ScrollText,
+  ShieldPlus,
+  Languages,
+  Guitar,
+} from 'lucide-react';
 
 const ICONS = {
   Identité: User,
   Lore: BookOpen,
-  Expériences: Clipboard,
+  Quêtes: ScrollText,
   Contact: Phone,
-  Formations: Puzzle,
-  Certifications: Star,
-  // …
+  NewbiePark: Puzzle,
+  HautsFaits: Star,
+  Talents: Sword,
+  Qualités: ShieldPlus,
+  Langues: Languages,
+  Hobbies: Guitar,
 };
 
 export default function PreviewCard({ type, children }) {

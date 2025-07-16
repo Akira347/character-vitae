@@ -2,29 +2,21 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import SectionSelectorItem from './SectionSelectorItem';
 
-const SECTION_TYPES = [
-  'Identité',
-  'Lore',
-  'Formations',
-  'Certifications',
-  'Soft‑skills',
-  'Talents',
-  'Expériences',
-  'Contact',
-  'Inventaire',
-];
-
-export default function SectionSelector({ onAddSection }) {
+export default function SectionSelector({ availableTypes, onAddSection }) {
   return (
     <div className="p-3 bg-white shadow-sm">
       <h5>Ajouter une section</h5>
-      {SECTION_TYPES.map((type) => (
-        <SectionSelectorItem key={type} type={type} onClick={onAddSection} />
+      {availableTypes.length === 0 && (
+        <p className="text-muted">Toutes les sections ont été ajoutées.</p>
+      )}
+      {availableTypes.map((type) => (
+        <SectionSelectorItem key={type} type={type} onAddSection={onAddSection} />
       ))}
     </div>
   );
 }
 
 SectionSelector.propTypes = {
+  availableTypes: PropTypes.arrayOf(PropTypes.string).isRequired,
   onAddSection: PropTypes.func.isRequired,
 };

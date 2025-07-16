@@ -1,14 +1,55 @@
-.preview-card {
+body {
   font-family: 'Cinzel', serif;
-  /* applique ta font */
-  background: url('/assets/parchment.jpg') center/cover no-repeat;
-  border: 30px solid transparent;
-  /* on découpe l’image en 3x3 mais on n’utilise que le top et bottom pour l’exemple */
-  border-image-source: url('/assets/section_top.png');
-  border-image-slice: 30 fill;
-  /* adapte la découpe selon ton image */
-  border-image-width: 30;
-  border-image-outset: 0;
-  border-image-repeat: round;
-  padding: 1.5rem;
+  background-color: #f5ecd1;
+  background-size: cover;
+}
+
+.preview-card {
+  background: url('../assets/parchment.jpg') center/cover no-repeat;
+  border-top: 30px solid transparent;
+  border-image: url('../assets/section-top.png') 30 round;
+  border-bottom: 30px solid transparent;
+  padding: 1rem;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
+  animation: rollOut 0.5s ease-out forwards;
+}
+
+.card-body {
+  animation: unroll 0.5s ease-out;
+}
+
+button,
+.btn {
+  font-family: 'IM Fell English SC', serif;
+}
+
+/* Animation d’un rouleau de parchemin */
+@keyframes unroll {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+
+  to {
+    height: auto;
+    opacity: 1;
+  }
+}
+
+h2,
+h3,
+.preview-card {
+  font-family: 'IM Fell English SC', serif;
+}
+
+@keyframes rollOut {
+  from {
+    transform: translateY(-20px) scaleY(0.8);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0) scaleY(1);
+    opacity: 1;
+  }
 }
