@@ -40,7 +40,7 @@ export function useDragDrop(sections, setSections) {
 }
 
 // Composant sortable pour chaque section
-export function SortableSection({ id, children, onSectionClick }) {
+export function SortableSection({ id, children, onSectionClick, onDeleteClick }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
 
   const style = {
@@ -82,6 +82,28 @@ export function SortableSection({ id, children, onSectionClick }) {
         ✎
       </button>
       {children}
+      <button
+        type="button"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDeleteClick(id);
+        }}
+        style={{
+          position: 'absolute',
+          bottom: 4,
+          right: 4,
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+        }}
+        aria-label="Supprimer la section"
+      >
+        ✕
+      </button>
     </div>
   );
 }
@@ -89,6 +111,7 @@ export function SortableSection({ id, children, onSectionClick }) {
 SortableSection.propTypes = {
   id: PropTypes.string.isRequired,
   onSectionClick: PropTypes.func.isRequired,
+  onDeleteClick: PropTypes.func.isRequired,
   children: PropTypes.node,
 };
 

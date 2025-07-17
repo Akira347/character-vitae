@@ -58,37 +58,18 @@ export default function Dashboard() {
           <Card.Body className="d-flex flex-wrap" style={{ minHeight: '60vh' }}>
             {sections.length === 0 && <p className="text-muted">Glissez vos sections ici…</p>}
 
-            <DragDropContainer
-              sections={sections}
-              setSections={setSections}
-              onSectionClick={handleAddSectionClick}
-            >
+            <DragDropContainer sections={sections} setSections={setSections}>
               {sections.map((sec) => (
                 <SortableSection
                   key={sec.id}
                   id={sec.id}
-                  onSectionClick={handleAddSectionClick} // ← on passe bien la fonction ici
+                  onSectionClick={handleAddSectionClick}
+                  onDeleteClick={handleRemoveSection}
                 >
                   <Card className="h-100">
                     <Card.Body>
                       <strong>{sec.type}</strong>
                     </Card.Body>
-                    {/* Bouton suppression */}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSection(sec.id)}
-                      style={{
-                        position: 'absolute',
-                        bottom: 4,
-                        right: 4,
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                      aria-label="Supprimer"
-                    >
-                      ✕
-                    </button>
                   </Card>
                 </SortableSection>
               ))}
