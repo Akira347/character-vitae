@@ -1,7 +1,14 @@
 // src/tools/dragDrop.jsx
 import React from 'react';
 import PropTypes from 'prop-types';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+} from '@dnd-kit/core';
 import {
   arrayMove,
   SortableContext,
@@ -13,20 +20,50 @@ import { CSS } from '@dnd-kit/utilities';
 // Hook custom pour initialiser les sensors et le handler
 export function useDragDrop(sections, setSections) {
   const sensors = useSensors(useSensor(PointerSensor));
+  const [activeId, setActiveId] = React.useState(null);
 
   function handleDragEnd(event) {
     const { active, over } = event;
-    // si c'est un type-XXX, on ajoute une nouvelle section
-    if (active.id.startsWith('type-') && over && !over.id.startsWith('type-')) {
-      const type = active.id.replace(/^type-/, '');
-      const newSection = { id: Date.now().toString(), type, content: [] };
-      setSections((prev) => {
-        const idx = prev.findIndex((s) => s.id === over.id);
-        return [...prev.slice(0, idx + 1), newSection, ...prev.slice(idx + 1)];
-      });
+    setActiveId(null);
+    console.log('Active id ' + active.id);
+
+    // 1) suppression si on droppe dans la palette
+    if (
+      active.id.startsWith('sec-') &&
+      over?.id === 'palette' &&
+      active.id !== 'sec-avatar' // on ne supprime pas l'avatar
+    ) {
+      console.log('drop palette id ' + active.id);
+
+      setSections((prev) => prev.filter((s) => s.id !== active.id));
       return;
     }
-    // sinon, c'est un reorder classique
+
+    // **Canvas → palette**
+    /*if (active.id.startsWith('sec-') && over?.id === 'palette') {
+      const id = active.id.replace(/^sec-/, '');
+      setSections(prev => prev.filter(s => s.id !== id));
+      return;
+    }*/
+
+    // 2) palette → canvas : insertion en décalant
+    if (active.id.startsWith('type-') && over && over.id.startsWith('sec-')) {
+      const type = active.id.replace(/^type-/, '');
+      const newSection = { id: `sec-${Date.now()}`, type, content: [] };
+
+      // index de la section ciblée
+      const targetIndex = sections.findIndex((s) => `sec-${s.id.replace(/^sec-/, '')}` === over.id);
+      const insertIndex = targetIndex >= 0 ? targetIndex + 1 : sections.length;
+
+      setSections((prev) => [
+        ...prev.slice(0, insertIndex),
+        newSection,
+        ...prev.slice(insertIndex),
+      ]);
+      return;
+    }
+
+    // 3) reorder interne du canvas
     if (over && active.id !== over.id) {
       setSections((prev) => {
         const oldIndex = prev.findIndex((s) => s.id === active.id);
@@ -36,7 +73,7 @@ export function useDragDrop(sections, setSections) {
     }
   }
 
-  return { sensors, handleDragEnd };
+  return { sensors, handleDragEnd, activeId, setActiveId };
 }
 
 // Composant sortable pour chaque section
@@ -82,28 +119,30 @@ export function SortableSection({ id, children, onSectionClick, onDeleteClick })
         ✎
       </button>
       {children}
-      <button
-        type="button"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          e.preventDefault();
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          onDeleteClick(id);
-        }}
-        style={{
-          position: 'absolute',
-          bottom: 4,
-          right: 4,
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-        }}
-        aria-label="Supprimer la section"
-      >
-        ✕
-      </button>
+      {id !== 'sec-avatar' && (
+        <button
+          type="button"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDeleteClick(id);
+          }}
+          style={{
+            position: 'absolute',
+            bottom: 4,
+            right: 4,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+          aria-label="Supprimer la section"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }
@@ -142,4 +181,32 @@ DragDropContainer.propTypes = {
   ).isRequired,
   setSections: PropTypes.func.isRequired,
   children: PropTypes.node.isRequired,
+};
+
+export function DroppableZone({ id, children, style }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      data-id={id}
+      style={{
+        ...style,
+        // un petit feedback quand on est au‑dessus
+        background: isOver ? 'rgba(0,123,255,0.1)' : undefined,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+DroppableZone.propTypes = {
+  id: PropTypes.string.isRequired,
+  children: PropTypes.node,
+  style: PropTypes.object,
+};
+
+DroppableZone.defaultProps = {
+  children: null,
+  style: {},
 };

@@ -28,7 +28,10 @@ export default function SectionForm({ show, type, initialData, onSave, onCancel 
     Identité: [
       { name: 'nom', label: 'Nom', required: true },
       { name: 'prénom', label: 'Prénom', required: true },
-      { name: 'job', label: 'Poste', required: true },
+      { name: 'nickname', label: 'Pseudo' },
+      { name: 'job', label: 'Poste ou Poste recherché', required: true },
+      { name: 'speciality', label: 'Spécialité' },
+      { name: 'level', label: 'Niveau' },
     ],
     Lore: [{ name: 'lore', label: 'Lore', as: 'textarea', required: true, minLength: 20 }],
     NewbiePark: [
