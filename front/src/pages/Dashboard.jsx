@@ -7,6 +7,9 @@ import SectionSelector from '../components/section/SectionSelector';
 import SectionForm from '../components/section/SectionForm';
 import { SECTION_TYPES } from '../constants/sectionTypes';
 import AvatarEditor from '../components/avatar/AvatarEditor';
+import SectionContainer from '../components/section/SectionContainer';
+import AvatarPreview from '../components/avatar/AvatarPreview';
+import SectionPreview from '../components/section/SectionPreview';
 
 import {
   DndContext,
@@ -16,9 +19,9 @@ import {
   useSensors,
   DragOverlay,
 } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
 
-import { useDragDrop, SortableSection, DroppableZone } from '../tools/dragDrop';
+import { useDragDrop, DroppableZone } from '../tools/dragDrop';
 
 export default function Dashboard() {
   const [editing, setEditing] = useState({ show: false, sectionId: null });
@@ -27,6 +30,7 @@ export default function Dashboard() {
       id: 'sec-avatar',
       type: 'Avatar',
       content: { nom: '', prénom: '', pseudo: '', avatarUrl: null },
+      collapsed: false,
     },
   ]);
   const [avatarEditing, setAvatarEditing] = useState(false);
@@ -55,6 +59,10 @@ export default function Dashboard() {
     }
   };
 
+  const toggleCollapse = (id) => {
+    setSections((secs) => secs.map((s) => (s.id === id ? { ...s, collapsed: !s.collapsed } : s)));
+  };
+
   return (
     <DndContext
       sensors={useSensors(sensor)}
@@ -77,31 +85,37 @@ export default function Dashboard() {
         {/* Canvas & Avatar */}
         <Col xs={12} md={8} lg={9}>
           <Container fluid className="p-0">
-            {/* Sections draggables */}
-            <SortableContext
-              items={sections.map((s) => s.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <Card>
-                <Card.Header>Édition du CV</Card.Header>
-                <Card.Body className="d-flex flex-wrap" style={{ minHeight: '60vh' }}>
+            {/* Ta boîte Édition du CV */}
+            <Card className="mb-4">
+              <Card.Header>Édition du CV</Card.Header>
+              <Card.Body className="d-flex flex-wrap" style={{ minHeight: '60vh' }}>
+                <SortableContext items={sections.map((s) => s.id)} strategy={rectSortingStrategy}>
                   {sections.map((sec) => (
-                    <SortableSection
+                    <SectionContainer
                       key={sec.id}
                       id={sec.id}
-                      onSectionClick={handleEditClick}
-                      onDeleteClick={handleRemoveSection}
+                      type={sec.type}
+                      isDragging={activeId === sec.id}
+                      onToggle={toggleCollapse}
+                      collapsed={sec.collapsed}
+                      onEdit={handleEditClick}
+                      onDelete={sec.id === 'sec-avatar' ? null : handleRemoveSection}
                     >
-                      <Card className="h-100">
-                        <Card.Body>
-                          <strong>{sec.type}</strong>
-                        </Card.Body>
-                      </Card>
-                    </SortableSection>
+                      {/* Affichage du contenu réellement saisi */}
+                      <div className="section-content">
+                        {sec.type === 'Avatar' ? (
+                          /* AvatarEditor inline ou preview Avatar */
+                          <AvatarPreview data={sec.content} />
+                        ) : (
+                          /* Pour les autres sections, on peut lister les champs */
+                          <SectionPreview type={sec.type} data={sec.content} />
+                        )}
+                      </div>
+                    </SectionContainer>
                   ))}
-                </Card.Body>
-              </Card>
-            </SortableContext>
+                </SortableContext>
+              </Card.Body>
+            </Card>
 
             {/* Formulaire de section */}
             <SectionForm
