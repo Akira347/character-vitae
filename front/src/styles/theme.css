@@ -1,14 +1,10 @@
-.preview-card {
+body {
   font-family: 'Cinzel', serif;
-  /* applique ta font */
-  background: url('/assets/parchment.jpg') center/cover no-repeat;
-  border: 30px solid transparent;
-  /* on découpe l’image en 3x3 mais on n’utilise que le top et bottom pour l’exemple */
-  border-image-source: url('/assets/section_top.png');
-  border-image-slice: 30 fill;
-  /* adapte la découpe selon ton image */
-  border-image-width: 30;
-  border-image-outset: 0;
-  border-image-repeat: round;
-  padding: 1.5rem;
+  background-color: #f5ecd1;
+  background-size: cover;
+}
+
+button,
+.btn {
+  font-family: 'IM Fell English SC', serif;
 }
