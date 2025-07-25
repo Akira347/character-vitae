@@ -1,32 +1,62 @@
-import React from 'react';
-import { Container, Nav, Navbar } from 'react-bootstrap';
+// src/components/structure/Header.jsx
+import React, { useState } from 'react';
+import { Navbar, Container, Nav, Modal, Button, Form } from 'react-bootstrap';
+import PlumeIcon from '../../assets/icons/plume.png';
 import { Link } from 'react-router-dom';
 
 export default function Header() {
+  const [show, setShow] = useState(false);
   return (
-    <Navbar bg="dark" variant="dark" expand="lg">
-      <Container>
-        <Navbar.Brand as={Link} to="/">
-          Character Vitae
-        </Navbar.Brand>
-        <Navbar.Toggle aria-controls="basic-navbar-nav" />
-        <Navbar.Collapse id="basic-navbar-nav">
-          <Nav className="me-auto">
-            <Nav.Link as={Link} to="/">
-              Accueil
-            </Nav.Link>
-            <Nav.Link as={Link} to="/dashboard">
-              Mon Dashboard
-            </Nav.Link>
-            <Nav.Link as={Link} to="/about">
-              À propos
-            </Nav.Link>
-            <Nav.Link as={Link} to="/contact">
-              Contact
+    <>
+      <Navbar variant="dark" expand="lg" className="px-3">
+        <Container fluid>
+          <Navbar.Brand as={Link} to="/">
+            Character Vitae
+          </Navbar.Brand>
+          <Nav className="ms-auto">
+            {/* icône plume */}
+            <Nav.Link onClick={() => setShow(true)}>
+              <img
+                src={PlumeIcon}
+                alt="Connexion"
+                style={{ width: 56, height: 56, objectFit: 'contain' }}
+              />
             </Nav.Link>
           </Nav>
-        </Navbar.Collapse>
-      </Container>
-    </Navbar>
+        </Container>
+      </Navbar>
+
+      {/* Modale de connexion */}
+      <Modal show={show} onHide={() => setShow(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Se connecter</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group className="mb-3">
+              <Form.Label>Adresse e-mail</Form.Label>
+              <Form.Control type="email" placeholder="email@exemple.com" />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Mot de passe</Form.Label>
+              <Form.Control type="password" />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShow(false)}>
+            Annuler
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              /* TODO: handle login */
+            }}
+          >
+            Connexion
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </>
   );
 }

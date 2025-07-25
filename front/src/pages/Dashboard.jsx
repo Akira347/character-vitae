@@ -1,5 +1,5 @@
+import '../styles/global.scss';
 import '../styles/Dashboard.css';
-import '../styles/theme.css';
 
 import React, { useState } from 'react';
 import { Row, Col, Card, Container } from 'react-bootstrap';
@@ -34,6 +34,7 @@ export default function Dashboard() {
     },
   ]);
   const [avatarEditing, setAvatarEditing] = useState(false);
+  const [showAvatarPanel, setShowAvatarPanel] = useState(false);
 
   // Hook DnD
   const { handleDragEnd, activeId, setActiveId } = useDragDrop(sections, setSections);
@@ -73,23 +74,43 @@ export default function Dashboard() {
     >
       <Row className="gy-4">
         {/* Palette */}
-        <Col xs={12} md={4} lg={3}>
+        <Col xs={12} md={3} lg={2}>
           <DroppableZone id="palette" style={{ padding: 0 }}>
-            <SectionSelector
-              availableTypes={SECTION_TYPES.filter((t) => !sections.some((s) => s.type === t))}
-              onAddSection={handleAddSection}
-            />
+            <div className="section-sidebar">
+              <div className="sidebar-header d-flex justify-content-center align-items-center">
+                <h5>{showAvatarPanel ? 'Avatar & Info' : 'Sections'}</h5>
+                <button
+                  type="button"
+                  className="toggle-panel-btn"
+                  onClick={() => setShowAvatarPanel((prev) => !prev)}
+                  aria-label="Basculer panneau"
+                >
+                  {showAvatarPanel ? '⇦' : '⇨'}
+                </button>
+              </div>
+
+              {showAvatarPanel ? (
+                <AvatarPreview data={null} />
+              ) : (
+                <SectionSelector
+                  availableTypes={SECTION_TYPES.filter((t) => !sections.some((s) => s.type === t))}
+                  onAddSection={handleAddSection}
+                />
+              )}
+            </div>
           </DroppableZone>
         </Col>
 
         {/* Canvas & Avatar */}
-        <Col xs={12} md={8} lg={9}>
+        <Col xs={12} md={9} lg={10}>
           <Container fluid className="p-0">
             {/* Ta boîte Édition du CV */}
             <Card className="mb-4">
-              <Card.Header>Édition du CV</Card.Header>
-              <Card.Body className="d-flex flex-wrap" style={{ minHeight: '60vh' }}>
+              <Card.Body className="dashboard-sections" style={{ minHeight: '60vh' }}>
                 <SortableContext items={sections.map((s) => s.id)} strategy={rectSortingStrategy}>
+                  {sections.length === 0 && (
+                    <p className="text-muted w-100 text-center">Glissez vos sections ici…</p>
+                  )}
                   {sections.map((sec) => (
                     <SectionContainer
                       key={sec.id}

@@ -1,8 +1,22 @@
+:root {
+  --section-min: 200px;
+  --section-max: 400px;
+}
+
 .dashboard-canvas {
   min-height: 60vh;
   background: #f9f9f9;
   border: 2px dashed #ccc;
   padding: 1rem;
+}
+
+.dashboard-sections {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(var(--section-min, 270px), var(--section-max, 1fr))
+  );
+  gap: 1rem;
 }
 
 /* Grid de sections */
@@ -23,11 +37,25 @@
 
 .section-container {
   position: relative;
-  width: 48%;
-  margin: 1%;
   border: none;
   display: flex;
   flex-direction: column;
+  /* active le redimensionnement horizontal */
+  resize: horizontal;
+  /* nécessaire pour afficher la poignée de redim’ */
+  overflow: auto;
+  min-width: var(--section-min);
+  max-width: var(--section-max);
+}
+
+/* Style de la poignée de redimensionnement */
+.section-container::-webkit-resizer {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.section-container {
+  /* pour Firefox */
+  resize: horizontal;
 }
 
 .section-top {
@@ -103,13 +131,6 @@
   opacity: 1;
 }
 
-/* Adaptation pour la stratégie de grille drag rectSortingStrategy */
-.section-container {
-  width: calc(50% - 2rem);
-  /* 2 colonnes */
-  margin: 1rem;
-}
-
 /* enfin, on masque via une seconde animation-step */
 @keyframes rollOut {
   from {
@@ -157,4 +178,40 @@ h2,
 h3,
 .preview-card {
   font-family: 'IM Fell English SC', serif;
+}
+
+.card {
+  background-color: transparent;
+}
+
+.bg-white {
+  background-color: transparent !important;
+}
+
+/* Style flèche Sections/Avatar */
+.toggle-panel-btn {
+  font-size: 1.5rem;
+  /* plus grosse */
+  color: #333 !important;
+  /* couleur bien visible */
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.section-container {
+  /* désactive le flex-grow pour que resize prenne effet */
+  flex: 0 0 auto;
+  /* autorise l’utilisateur à redimensionner horizontalement */
+  resize: horizontal;
+  /* nécessaire pour que resize fonctionne */
+  overflow: auto;
+  /* bornes de redimensionnement */
+  min-width: var(--section-min);
+  max-width: var(--section-max);
+}
+
+/* quand on survole la bordure, on affiche le bon curseur */
+.section-container:hover {
+  cursor: col-resize;
 }

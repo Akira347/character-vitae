@@ -1,7 +1,7 @@
 // src/components/section/SectionPreview.jsx
 import React from 'react';
 import PropTypes from 'prop-types';
-import '../../styles/theme.css'; // si besoin des styles parchment
+import '../../styles/global.scss'; // si besoin des styles parchment
 
 export default function SectionPreview({ data }) {
   return (
