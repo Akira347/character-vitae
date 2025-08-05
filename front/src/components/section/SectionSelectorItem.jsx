@@ -46,7 +46,7 @@ export default function SectionSelectorItem({ type, onAddSection }) {
   return (
     <div
       ref={setNodeRef}
-      className="d-flex align-items-center p-2 mb-2 border rounded bg-light"
+      className="d-flex align-items-center p-2 mb-2 border rounded bg-light section-parchment"
       style={{ justifyContent: 'space-between' }}
     >
       <div className="d-flex align-items-center">

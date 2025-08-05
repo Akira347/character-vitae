@@ -1,7 +1,8 @@
 // src/components/section/SectionContainer.jsx
-import React from 'react';
+import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useSortable } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import '../../styles/Dashboard.css';
 
@@ -12,24 +13,80 @@ export default function SectionContainer({
   onToggle,
   onEdit,
   onDelete,
-  isDragging,
   children,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+  const containerRef = useRef(null);
+  const resizing = useRef(null);
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id });
+  const isEmpty = type === 'empty';
+  const rootRef = (node) => {
+    setNodeRef(node);
+    setDropRef(node);
+    containerRef.current = node;
+  };
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+  const onMouseDown = (side, e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!containerRef.current) return;
+    resizing.current = {
+      side,
+      startX: e.clientX,
+      startW: containerRef.current.offsetWidth,
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const onMouseMove = (e) => {
+    if (!resizing.current || !containerRef.current) return;
+    const { side, startX, startW } = resizing.current;
+    const delta = e.clientX - startX;
+    const rawW = side === 'right' ? startW + delta : startW - delta;
+
+    const minW = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--section-min'),
+      10,
+    );
+    const maxW = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--section-max'),
+      10,
+    );
+    const clamped = Math.min(maxW, Math.max(minW, rawW));
+
+    // Au lieu de setWidth(clamped) :
+    containerRef.current.style.minWidth = `${clamped}px`;
+    containerRef.current.style.maxWidth = `${clamped}px`;
+  };
+
+  const onMouseUp = () => {
+    resizing.current = null;
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
   };
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      className={`section-container ${collapsed ? 'collapsed' : ''}`}
+      ref={rootRef}
+      className={[
+        'section-container',
+        collapsed && 'collapsed',
+        isEmpty && 'section-placeholder',
+        isEmpty && 'empty',
+        isOver && 'droppable-over',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
     >
-      {/* Quand on clique sur la partie top ou le header ou le bottom, on toggle */}
+      {/* poignées de resize */}
+      <div className="section-handle left" onMouseDown={(e) => onMouseDown('left', e)} />
+      <div className="section-handle right" onMouseDown={(e) => onMouseDown('right', e)} />
+
       <div
         className="section-top"
         onClick={() => onToggle(id)}
@@ -41,7 +98,6 @@ export default function SectionContainer({
           onClick={() => onToggle(id)}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          {/* poignée de drag */}
           <span
             className="drag-handle"
             {...listeners}
@@ -79,7 +135,9 @@ export default function SectionContainer({
             )}
           </div>
         </header>
-        <div className="section-body">{children}</div>
+        <div className="section-body" style={{ overflow: 'visible' }}>
+          {children}
+        </div>
       </div>
       <div
         className="section-bottom"
@@ -97,7 +155,6 @@ SectionContainer.propTypes = {
   onToggle: PropTypes.func.isRequired,
   onEdit: PropTypes.func,
   onDelete: PropTypes.func,
-  isDragging: PropTypes.bool,
   children: PropTypes.node,
 };
 
@@ -105,6 +162,5 @@ SectionContainer.defaultProps = {
   collapsed: false,
   onEdit: null,
   onDelete: null,
-  isDragging: false,
   children: null,
 };

@@ -9,12 +9,7 @@ import {
   useSensors,
   useDroppable,
 } from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 // Hook custom pour initialiser les sensors et le handler
@@ -24,52 +19,63 @@ export function useDragDrop(sections, setSections) {
 
   function handleDragEnd(event) {
     const { active, over } = event;
-    setActiveId(null);
-    console.log('Active id ' + active.id);
+    if (!over) return;
 
-    // 1) suppression si on droppe dans la palette
-    if (
-      active.id.startsWith('sec-') &&
-      over?.id === 'palette' &&
-      active.id !== 'sec-avatar' // on ne supprime pas l'avatar
-    ) {
-      console.log('drop palette id ' + active.id);
-
-      setSections((prev) => prev.filter((s) => s.id !== active.id));
-      return;
-    }
-
-    // **Canvas → palette**
-    /*if (active.id.startsWith('sec-') && over?.id === 'palette') {
-      const id = active.id.replace(/^sec-/, '');
-      setSections(prev => prev.filter(s => s.id !== id));
+    // insertion palette → placeholder
+    /*if (active.id.startsWith('type-') && over.id.startsWith('empty-')) {
+      const placeIdx = parseInt(over.id.replace('empty-', ''), 10);
+      const type = active.id.replace(/^type-/, '');
+      const newSection = {
+        id: `sec-${Date.now()}`,
+        type,
+        content: [],
+        collapsed: false
+      };
+      setSections(prev => {
+        const copy = [...prev];
+        copy[placeIdx] = newSection;
+        return copy;
+      });
       return;
     }*/
 
-    // 2) palette → canvas : insertion en décalant
-    if (active.id.startsWith('type-') && over && over.id.startsWith('sec-')) {
-      const type = active.id.replace(/^type-/, '');
-      const newSection = { id: `sec-${Date.now()}`, type, content: [] };
-
-      // index de la section ciblée
-      const targetIndex = sections.findIndex((s) => `sec-${s.id.replace(/^sec-/, '')}` === over.id);
-      const insertIndex = targetIndex >= 0 ? targetIndex + 1 : sections.length;
-
-      setSections((prev) => [
-        ...prev.slice(0, insertIndex),
-        newSection,
-        ...prev.slice(insertIndex),
-      ]);
+    // **2) drag canvas → placeholder** (sec-… → empty-…)
+    if (active.id.startsWith('sec-') && over.id.startsWith('empty-')) {
+      const fromIdx = sections.findIndex((s) => s.id === active.id);
+      const toIdx = parseInt(over.id.replace('empty-', ''), 10);
+      setSections((prev) => {
+        const copy = [...prev];
+        const [moved] = copy.splice(fromIdx, 1); // extrait l’item
+        // on remet une case vide à l’ancienne place
+        copy.splice(fromIdx, 0, { type: 'empty' });
+        // on remplace la cible
+        copy[toIdx] = moved;
+        return copy;
+      });
       return;
     }
 
-    // 3) reorder interne du canvas
-    if (over && active.id !== over.id) {
+    // **3) reorder interne canvas** (sec-… → sec-…)
+    if (active.id.startsWith('sec-') && over.id.startsWith('sec-')) {
       setSections((prev) => {
         const oldIndex = prev.findIndex((s) => s.id === active.id);
         const newIndex = prev.findIndex((s) => s.id === over.id);
-        return arrayMove(prev, oldIndex, newIndex);
+        const copy = [...prev];
+        const [moved] = copy.splice(oldIndex, 1);
+        copy.splice(newIndex, 0, moved);
+        return copy;
       });
+      return;
+    }
+
+    // **4) suppression dans palette** (sec-… → palette)
+    if (active.id.startsWith('sec-') && over.id === 'palette' && active.id !== 'sec-avatar') {
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id === active.id ? { id: `empty-${prev.indexOf(s)}`, type: 'empty', content: {} } : s,
+        ),
+      );
+      return;
     }
   }
 
@@ -183,17 +189,14 @@ DragDropContainer.propTypes = {
   children: PropTypes.node.isRequired,
 };
 
-export function DroppableZone({ id, children, style }) {
+export function DroppableZone({ id, children, style, className }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <div
       ref={setNodeRef}
       data-id={id}
-      style={{
-        ...style,
-        // un petit feedback quand on est au‑dessus
-        background: isOver ? 'rgba(0,123,255,0.1)' : undefined,
-      }}
+      className={isOver ? `${className || ''} droppable-over` : className}
+      style={style}
     >
       {children}
     </div>
@@ -204,6 +207,7 @@ DroppableZone.propTypes = {
   id: PropTypes.string.isRequired,
   children: PropTypes.node,
   style: PropTypes.object,
+  className: PropTypes.string,
 };
 
 DroppableZone.defaultProps = {

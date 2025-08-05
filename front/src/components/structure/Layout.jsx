@@ -8,7 +8,7 @@ export default function Layout() {
   return (
     <div className="d-flex flex-column min-vh-100">
       <Header />
-      <Container className="my-4">
+      <Container fluid className="px-0 my-4">
         <Outlet />
       </Container>
       <Footer />

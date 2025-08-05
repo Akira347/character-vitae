@@ -1,0 +1,59 @@
+@import 'sanitize.css';
+
+:root {
+    --color-bg: #f5ecd1;
+    --color-primary: #5c3a21;
+    --color-accent: #ffd700;
+    --font-title: 'Cinzel', serif;
+    --font-body: 'Roboto', sans-serif;
+    --spacer: 1rem;
+    --text-color: #2c2c2c;
+    --heading-color: #1a1a1a;
+}
+
+@import 'bootstrap/scss/bootstrap';
+
+body,
+button,
+.navbar,
+.section-header h5,
+p,
+a,
+span,
+li {
+    color: var(--text-color) !important;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--heading-color) !important;
+}
+
+html,
+body,
+#root {
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+body {
+    background-color: var(--color-bg);
+    font-family: var(--font-body);
+}
+
+button,
+.btn {
+    font-family: 'IM Fell English SC', serif;
+}
+
+body,
+#root {
+    background: url('../assets/parchment/parchment-bg.jpg') center/cover no-repeat;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+}
