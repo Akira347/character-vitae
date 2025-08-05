@@ -1,61 +1,33 @@
 :root {
   --section-min: 200px;
   --section-max: 400px;
-}
-
-.dashboard-canvas {
-  min-height: 60vh;
-  background: #f9f9f9;
-  border: 2px dashed #ccc;
-  padding: 1rem;
+  --section-standard: 295px;
 }
 
 .dashboard-sections {
-  display: grid;
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(var(--section-min, 270px), var(--section-max, 1fr))
-  );
-  gap: 1rem;
-}
-
-/* Grid de sections */
-.canvas-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 1rem;
-}
-
-/* Conteneur pour chaque section ajoutée */
-.canvas-item {
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-  text-align: center;
-}
-
-.section-container {
-  position: relative;
-  border: none;
   display: flex;
-  flex-direction: column;
-  /* active le redimensionnement horizontal */
-  resize: horizontal;
-  /* nécessaire pour afficher la poignée de redim’ */
-  overflow: auto;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  /* largeur max pour 5 colonnes + 4 gaps */
+  max-width: calc(5 * var(--section-max) + 4 * 1rem);
+  margin: 0 auto;
+  /* aligne les lignes en haut */
+  align-content: flex-start;
+}
+
+/* Chaque case (section ou placeholder) */
+.section-container,
+.section-placeholder {
+  flex: 0 0 var(--section-standard);
+  /* largeur minimale */
   min-width: var(--section-min);
+  /* largeur maximale */
   max-width: var(--section-max);
-}
-
-/* Style de la poignée de redimensionnement */
-.section-container::-webkit-resizer {
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.section-container {
-  /* pour Firefox */
-  resize: horizontal;
+  /* on autorise l’élasticité pour que flex-wrap + justify-content remplisse dense */
+  flex-grow: 1;
+  /* hauteur minimale pour avoir 3 lignes homogènes */
+  min-height: var(--section-min);
 }
 
 .section-top {
@@ -200,18 +172,93 @@ h3,
 }
 
 .section-container {
-  /* désactive le flex-grow pour que resize prenne effet */
   flex: 0 0 auto;
-  /* autorise l’utilisateur à redimensionner horizontalement */
-  resize: horizontal;
-  /* nécessaire pour que resize fonctionne */
-  overflow: auto;
-  /* bornes de redimensionnement */
+  /* ne pas étirer */
   min-width: var(--section-min);
+  /* appliqué automatiquement */
   max-width: var(--section-max);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* pas de scrollbars internes */
+  overflow: hidden;
+  /* masque la poignée native */
+  resize: none !important;
 }
 
-/* quand on survole la bordure, on affiche le bon curseur */
-.section-container:hover {
+.section-container {
+  position: relative;
+  /* … tes autres styles … */
+  display: flex;
+  flex-direction: column;
+  /* largeur initiale gérée via inline-style ou state */
+}
+
+/* Poignées de redimensionnement */
+.section-handle {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 100%;
   cursor: col-resize;
+  z-index: 5;
+}
+
+.section-handle.left {
+  left: -4px;
+}
+
+.section-handle.right {
+  right: -4px;
+}
+
+.section-placeholder {
+  /* visuel d’une case vide */
+  display: flex;
+  height: calc(var(--section-min) * 0.75);
+  background: transparent;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(0, 0, 0, 0.3);
+  font-size: 0.9rem;
+  width: var(--section-standard);
+  max-width: var(--section-max);
+  flex-grow: 1;
+}
+
+@media (max-width: 1919px) {
+  .dashboard-sections {
+    position: relative;
+  }
+
+  .dashboard-sections > *:nth-child(3)::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: calc(var(--section-min) + 0.5rem);
+    width: 2px;
+    background: rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+  }
+}
+
+.section-container.empty {
+  background: transparent;
+  border: 2px dashed rgba(0, 0, 0, 0.3);
+  border-radius: 0.5rem;
+}
+
+.section-container.empty .section-parchment,
+.section-container.empty .section-top,
+.section-container.empty .section-bottom {
+  display: none;
+}
+
+/* surbrillance au hover drag-over */
+.section-container.empty.droppable-over {
+  background: rgba(0, 123, 255, 0.1);
+  border-color: #007bff;
 }

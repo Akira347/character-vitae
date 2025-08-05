@@ -24,15 +24,23 @@ import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
 import { useDragDrop, DroppableZone } from '../tools/dragDrop';
 
 export default function Dashboard() {
+  const TOTAL_SLOTS = 15;
+  const [sections, setSections] = useState(() => {
+    const real = [
+      {
+        id: 'sec-avatar',
+        type: 'Avatar',
+        content: { nom: '', prénom: '', pseudo: '', avatarUrl: null },
+        collapsed: false,
+      },
+    ];
+    const empties = Array.from({ length: TOTAL_SLOTS - real.length }).map(() => ({
+      type: 'empty',
+    }));
+    return [...real, ...empties];
+  });
+
   const [editing, setEditing] = useState({ show: false, sectionId: null });
-  const [sections, setSections] = useState([
-    {
-      id: 'sec-avatar',
-      type: 'Avatar',
-      content: { nom: '', prénom: '', pseudo: '', avatarUrl: null },
-      collapsed: false,
-    },
-  ]);
   const [avatarEditing, setAvatarEditing] = useState(false);
   const [showAvatarPanel, setShowAvatarPanel] = useState(false);
 
@@ -41,14 +49,33 @@ export default function Dashboard() {
   const sensor = useSensor(PointerSensor);
 
   const handleAddSection = (type) => {
+    // si déjà posée, on ne ré-ajoute pas
     if (sections.some((s) => s.type === type)) return;
-    const newSection = { id: `sec-${Date.now()}`, type, content: [] };
-    setSections((prev) => [...prev, newSection]);
+    // on trouve le premier slot vide
+    const idx = sections.findIndex((s) => s.type === 'empty');
+    if (idx === -1) return; // plus de place
+    const newSection = {
+      id: `sec-${Date.now()}`,
+      type,
+      content: [],
+      collapsed: false,
+    };
+    setSections((prev) => {
+      const copy = [...prev];
+      copy[idx] = newSection; // on remplace l’empty slot
+      return copy;
+    });
     setEditing({ show: true, sectionId: newSection.id });
   };
 
   const handleRemoveSection = (id) => {
-    setSections((prev) => prev.filter((s) => s.id !== id));
+    setSections((prev) => {
+      const idx = prev.findIndex((s) => s.id === id);
+      if (idx === -1) return prev;
+      const copy = [...prev];
+      copy[idx] = { type: 'empty' }; // on remet un placeholder
+      return copy;
+    });
   };
 
   // Au lieu de handleAddSectionClick, on gère tous les clics “éditer”
@@ -69,7 +96,34 @@ export default function Dashboard() {
       sensors={useSensors(sensor)}
       collisionDetection={closestCenter}
       onDragStart={({ active }) => setActiveId(active.id)}
-      onDragEnd={handleDragEnd}
+      onDragEnd={(event) => {
+        const { active, over } = event;
+
+        // 1) Si palette→placeholder => on gère nous-mêmes la création + modale
+        if (active.id.startsWith('type-') && over?.id?.startsWith('empty-')) {
+          const placeIdx = parseInt(over.id.replace('empty-', ''), 10);
+          const typeName = active.id.replace(/^type-/, '');
+          const newId = `sec-${Date.now()}`;
+          const newSection = {
+            id: newId,
+            type: typeName,
+            content: [],
+            collapsed: false,
+          };
+
+          setSections((prev) => {
+            const copy = [...prev];
+            copy[placeIdx] = newSection;
+            return copy;
+          });
+          // **ouvrir** la modale sur ce nouvel id
+          setEditing({ show: true, sectionId: newId });
+          return;
+        }
+
+        // 2) sinon on laisse handleDragEnd faire son boulot (reorder, palette→canvas, suppression…)
+        handleDragEnd(event);
+      }}
       onDragCancel={() => setActiveId(null)}
     >
       <Row className="gy-4">
@@ -104,34 +158,31 @@ export default function Dashboard() {
         {/* Canvas & Avatar */}
         <Col xs={12} md={9} lg={10}>
           <Container fluid className="p-0">
-            {/* Ta boîte Édition du CV */}
             <Card className="mb-4">
-              <Card.Body className="dashboard-sections" style={{ minHeight: '60vh' }}>
+              <Card.Body className="dashboard-sections">
                 <SortableContext items={sections.map((s) => s.id)} strategy={rectSortingStrategy}>
-                  {sections.length === 0 && (
-                    <p className="text-muted w-100 text-center">Glissez vos sections ici…</p>
-                  )}
-                  {sections.map((sec) => (
+                  {sections.map((sec, idx) => (
                     <SectionContainer
-                      key={sec.id}
-                      id={sec.id}
+                      key={sec.id ?? `empty-${idx}`}
+                      id={sec.id ?? `empty-${idx}`}
                       type={sec.type}
-                      isDragging={activeId === sec.id}
                       onToggle={toggleCollapse}
+                      onEdit={sec.type !== 'empty' ? handleEditClick : null}
+                      onDelete={
+                        sec.type === 'empty' || sec.id === 'sec-avatar' ? null : handleRemoveSection
+                      }
                       collapsed={sec.collapsed}
-                      onEdit={handleEditClick}
-                      onDelete={sec.id === 'sec-avatar' ? null : handleRemoveSection}
+                      isDragging={activeId === sec.id}
                     >
-                      {/* Affichage du contenu réellement saisi */}
-                      <div className="section-content">
-                        {sec.type === 'Avatar' ? (
-                          /* AvatarEditor inline ou preview Avatar */
-                          <AvatarPreview data={sec.content} />
-                        ) : (
-                          /* Pour les autres sections, on peut lister les champs */
-                          <SectionPreview type={sec.type} data={sec.content} />
-                        )}
-                      </div>
+                      {sec.type !== 'empty' && (
+                        <div className="section-content">
+                          {sec.type === 'Avatar' ? (
+                            <AvatarPreview data={sec.content} />
+                          ) : (
+                            <SectionPreview type={sec.type} data={sec.content} />
+                          )}
+                        </div>
+                      )}
                     </SectionContainer>
                   ))}
                 </SortableContext>
