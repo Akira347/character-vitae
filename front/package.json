@@ -11,7 +11,9 @@
   },
   "jest": {
     "testEnvironment": "jest-environment-jsdom",
-    "setupFilesAfterEnv": ["<rootDir>/setupTests.js"],
+    "setupFilesAfterEnv": [
+      "<rootDir>/setupTests.js"
+    ],
     "moduleFileExtensions": [
       "js",
       "jsx",
@@ -51,6 +53,7 @@
     "jest": "^30.0.5",
     "jest-environment-jsdom": "^30.0.5",
     "prettier": "^3.6.2",
+    "sass-embedded": "^1.89.2",
     "vite": "^6.3.5"
   }
 }
