@@ -53,6 +53,7 @@
     "jest": "^30.0.5",
     "jest-environment-jsdom": "^30.0.5",
     "prettier": "^3.6.2",
+    "sanitize.css": "^13.0.0",
     "sass-embedded": "^1.89.2",
     "vite": "^6.3.5"
   }

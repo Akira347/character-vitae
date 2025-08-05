@@ -8,9 +8,7 @@
         "babel-jest": "^30.0.5",
         "husky": "^8.0.0",
         "jest": "^30.0.5",
+        "sanitize.css": "^13.0.0",
         "sass-embedded": "^1.89.2"
-    },
-    "dependencies": {
-        "sanitize.css": "^13.0.0"
     }
 }
