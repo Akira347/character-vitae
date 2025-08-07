@@ -10,7 +10,7 @@ export default function Header() {
     <>
       <Navbar variant="dark" expand="lg" className="px-3">
         <Container fluid>
-          <Navbar.Brand as={Link} to="/">
+          <Navbar.Brand as={Link} to="/" className="brand-logo">
             Character Vitae
           </Navbar.Brand>
           <Nav className="ms-auto">
