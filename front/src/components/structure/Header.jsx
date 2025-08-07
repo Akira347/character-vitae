@@ -8,7 +8,7 @@ export default function Header() {
   const [show, setShow] = useState(false);
   return (
     <>
-      <Navbar variant="dark" expand="lg" className="px-3">
+      <Navbar expand="lg" className="px-3">
         <Container fluid>
           <Navbar.Brand as={Link} to="/" className="brand-logo">
             Character Vitae

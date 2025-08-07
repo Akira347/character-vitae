@@ -1,4 +1,3 @@
-import '../styles/global.scss';
 import '../styles/Dashboard.css';
 
 import React, { useState } from 'react';

@@ -10,17 +10,22 @@
     "test": "jest"
   },
   "jest": {
-    "testEnvironment": "jest-environment-jsdom",
+    "testEnvironment": "jsdom",
     "setupFilesAfterEnv": [
       "<rootDir>/setupTests.js"
     ],
+    "transform": {
+      "^.+\\.[tj]sx?$": "babel-jest"
+    },
     "moduleFileExtensions": [
       "js",
       "jsx",
-      "json"
+      "json",
+      "node"
     ],
-    "transform": {
-      "^.+\\.[tj]sx?$": "babel-jest"
+    "moduleNameMapper": {
+      "\\.(css|scss)$": "identity-obj-proxy",
+      "\\.(png|jpe?g|webp|svg|gif)$": "<rootDir>/__mocks__/fileMock.js"
     }
   },
   "keywords": [],
@@ -50,10 +55,10 @@
     "eslint-plugin-react": "^7.37.5",
     "globals": "^16.3.0",
     "husky": "^8.0.0",
+    "identity-obj-proxy": "^3.0.0",
     "jest": "^30.0.5",
     "jest-environment-jsdom": "^30.0.5",
     "prettier": "^3.6.2",
-    "sanitize.css": "^13.0.0",
     "sass-embedded": "^1.89.2",
     "vite": "^6.3.5"
   }
