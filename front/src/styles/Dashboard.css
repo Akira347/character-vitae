@@ -186,14 +186,6 @@ h3,
   resize: none !important;
 }
 
-.section-container {
-  position: relative;
-  /* … tes autres styles … */
-  display: flex;
-  flex-direction: column;
-  /* largeur initiale gérée via inline-style ou state */
-}
-
 /* Poignées de redimensionnement */
 .section-handle {
   position: absolute;
@@ -261,4 +253,42 @@ h3,
 .section-container.empty.droppable-over {
   background: rgba(0, 123, 255, 0.1);
   border-color: #007bff;
+}
+
+/* wrap entire sidebar in a translucent panel */
+.section-sidebar {
+  background: transparent;
+  padding: 1rem;
+}
+
+.tab-content {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+/* the two tab buttons */
+.tab-switcher {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tab-switcher button {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 1rem;
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.tab-switcher button:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.tab-switcher button.active {
+  border-bottom: 2px solid --color-primary;
+  font-weight: bold;
+  color: --color-primary;
 }

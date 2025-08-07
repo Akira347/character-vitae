@@ -1,4 +1,3 @@
-import '../styles/global.scss';
 import '../styles/Dashboard.css';
 
 import React, { useState } from 'react';
@@ -8,8 +7,8 @@ import SectionForm from '../components/section/SectionForm';
 import { SECTION_TYPES } from '../constants/sectionTypes';
 import AvatarEditor from '../components/avatar/AvatarEditor';
 import SectionContainer from '../components/section/SectionContainer';
-import AvatarPreview from '../components/avatar/AvatarPreview';
 import SectionPreview from '../components/section/SectionPreview';
+import AvatarInfoPanel from '../components/avatar/AvatarInfoPanel';
 
 import {
   DndContext,
@@ -26,23 +25,22 @@ import { useDragDrop, DroppableZone } from '../tools/dragDrop';
 export default function Dashboard() {
   const TOTAL_SLOTS = 15;
   const [sections, setSections] = useState(() => {
-    const real = [
-      {
-        id: 'sec-avatar',
-        type: 'Avatar',
-        content: { nom: '', prénom: '', pseudo: '', avatarUrl: null },
-        collapsed: false,
-      },
-    ];
+    const real = [];
     const empties = Array.from({ length: TOTAL_SLOTS - real.length }).map(() => ({
       type: 'empty',
     }));
     return [...real, ...empties];
   });
 
+  const [activeTab, setActiveTab] = useState('sections');
   const [editing, setEditing] = useState({ show: false, sectionId: null });
+
+  const [avatarData, setAvatarData] = useState({
+    sexe: 'Homme',
+    affichage: 'avatar',
+    photoUrl: '',
+  });
   const [avatarEditing, setAvatarEditing] = useState(false);
-  const [showAvatarPanel, setShowAvatarPanel] = useState(false);
 
   // Hook DnD
   const { handleDragEnd, activeId, setActiveId } = useDragDrop(sections, setSections);
@@ -131,26 +129,33 @@ export default function Dashboard() {
         <Col xs={12} md={3} lg={2}>
           <DroppableZone id="palette" style={{ padding: 0 }}>
             <div className="section-sidebar">
-              <div className="sidebar-header d-flex justify-content-center align-items-center">
-                <h5>{showAvatarPanel ? 'Avatar & Info' : 'Sections'}</h5>
+              <div className="tab-switcher">
                 <button
-                  type="button"
-                  className="toggle-panel-btn"
-                  onClick={() => setShowAvatarPanel((prev) => !prev)}
-                  aria-label="Basculer panneau"
+                  className={activeTab === 'sections' ? 'active' : ''}
+                  onClick={() => setActiveTab('sections')}
                 >
-                  {showAvatarPanel ? '⇦' : '⇨'}
+                  Sections
+                </button>
+                <button
+                  className={activeTab === 'avatar' ? 'active' : ''}
+                  onClick={() => setActiveTab('avatar')}
+                >
+                  Avatar & Infos
                 </button>
               </div>
 
-              {showAvatarPanel ? (
-                <AvatarPreview data={null} />
-              ) : (
-                <SectionSelector
-                  availableTypes={SECTION_TYPES.filter((t) => !sections.some((s) => s.type === t))}
-                  onAddSection={handleAddSection}
-                />
-              )}
+              <div className="tab-content">
+                {activeTab === 'sections' ? (
+                  <SectionSelector
+                    availableTypes={SECTION_TYPES.filter(
+                      (t) => !sections.some((s) => s.type === t),
+                    )}
+                    onAddSection={handleAddSection}
+                  />
+                ) : (
+                  <AvatarInfoPanel data={avatarData} onEditAvatar={() => setAvatarEditing(true)} />
+                )}
+              </div>
             </div>
           </DroppableZone>
         </Col>
@@ -176,11 +181,7 @@ export default function Dashboard() {
                     >
                       {sec.type !== 'empty' && (
                         <div className="section-content">
-                          {sec.type === 'Avatar' ? (
-                            <AvatarPreview data={sec.content} />
-                          ) : (
-                            <SectionPreview type={sec.type} data={sec.content} />
-                          )}
+                          <SectionPreview type={sec.type} data={sec.content} />
                         </div>
                       )}
                     </SectionContainer>
@@ -189,7 +190,7 @@ export default function Dashboard() {
               </Card.Body>
             </Card>
 
-            {/* Formulaire de section */}
+            {/* Formulaire de section*/}
             <SectionForm
               show={editing.show}
               type={sections.find((s) => s.id === editing.sectionId)?.type}
@@ -206,11 +207,9 @@ export default function Dashboard() {
             {/* pour l’avatar */}
             <AvatarEditor
               show={avatarEditing}
-              data={sections.find((s) => s.id === 'sec-avatar').content}
+              data={avatarData}
               onSave={(newAvatarData) => {
-                setSections((prev) =>
-                  prev.map((s) => (s.id === 'sec-avatar' ? { ...s, content: newAvatarData } : s)),
-                );
+                setAvatarData(newAvatarData);
                 setAvatarEditing(false);
               }}
               onCancel={() => setAvatarEditing(false)}
