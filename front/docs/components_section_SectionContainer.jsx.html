@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/section/SectionContainer.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/section/SectionContainer.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// src/components/section/SectionContainer.jsx
+import React, { useRef } from 'react';
+import PropTypes from 'prop-types';
+import { useSortable } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
+
+/**
+ * Conteneur d’une section du CV (drag, resize, collapse, edit, delete).
+ *
+ * @param {object}   props
+ * @param {string}   props.id         Identifiant unique de la section
+ * @param {string}   props.type       Type de la section (ou "empty")
+ * @param {boolean}  [props.collapsed=false] Si true, la section est repliée
+ * @param {Function} props.onToggle   Fonction appelée avec (id) pour basculer collapsed
+ * @param {Function} [props.onEdit]   Fonction appelée avec (id) sur “Modifier”
+ * @param {Function} [props.onDelete] Fonction appelée avec (id) sur “Supprimer”
+ * @param {React.ReactNode} [props.children] Contenu interne de la section
+ * @returns {JSX.Element}
+ */
+export default function SectionContainer({
+  id,
+  type,
+  collapsed,
+  onToggle,
+  onEdit,
+  onDelete,
+  children,
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+  const containerRef = useRef(null);
+  const resizing = useRef(null);
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id });
+  const isEmpty = type === 'empty';
+  const rootRef = (node) => {
+    setNodeRef(node);
+    setDropRef(node);
+    containerRef.current = node;
+  };
+
+  const onMouseDown = (side, e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!containerRef.current) return;
+    resizing.current = {
+      side,
+      startX: e.clientX,
+      startW: containerRef.current.offsetWidth,
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const onMouseMove = (e) => {
+    if (!resizing.current || !containerRef.current) return;
+    const { side, startX, startW } = resizing.current;
+    const delta = e.clientX - startX;
+    const rawW = side === 'right' ? startW + delta : startW - delta;
+
+    const minW = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--section-min'),
+      10,
+    );
+    const maxW = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--section-max'),
+      10,
+    );
+    const clamped = Math.min(maxW, Math.max(minW, rawW));
+
+    // Au lieu de setWidth(clamped) :
+    containerRef.current.style.minWidth = `${clamped}px`;
+    containerRef.current.style.maxWidth = `${clamped}px`;
+  };
+
+  const onMouseUp = () => {
+    resizing.current = null;
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+  };
+
+  return (
+    &lt;div
+      ref={rootRef}
+      className={[
+        'section-container',
+        collapsed &amp;&amp; 'collapsed',
+        isEmpty &amp;&amp; 'section-placeholder',
+        isEmpty &amp;&amp; 'empty',
+        isOver &amp;&amp; 'droppable-over',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+    >
+      {/* poignées de resize */}
+      &lt;div className="section-handle left" onMouseDown={(e) => onMouseDown('left', e)} />
+      &lt;div className="section-handle right" onMouseDown={(e) => onMouseDown('right', e)} />
+
+      &lt;div
+        className="section-top"
+        onClick={() => onToggle(id)}
+        onPointerDown={(e) => e.stopPropagation()}
+      />
+      &lt;div className="section-parchment">
+        &lt;header
+          className="section-header"
+          onClick={() => onToggle(id)}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          &lt;span
+            className="drag-handle"
+            {...listeners}
+            {...attributes}
+            title="Glisser pour déplacer"
+          >
+            ⠿
+          &lt;/span>
+
+          &lt;h5>{type}&lt;/h5>
+          &lt;div className="controls">
+            {onEdit &amp;&amp; (
+              &lt;button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(id);
+                }}
+                aria-label="Modifier la section"
+              >
+                ✎
+              &lt;/button>
+            )}
+            {onDelete &amp;&amp; (
+              &lt;button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(id);
+                }}
+                aria-label="Supprimer la section"
+              >
+                ✕
+              &lt;/button>
+            )}
+          &lt;/div>
+        &lt;/header>
+        &lt;div className="section-body" style={{ overflow: 'visible' }}>
+          {children}
+        &lt;/div>
+      &lt;/div>
+      &lt;div
+        className="section-bottom"
+        onClick={() => onToggle(id)}
+        onPointerDown={(e) => e.stopPropagation()}
+      />
+    &lt;/div>
+  );
+}
+
+SectionContainer.propTypes = {
+  id: PropTypes.string.isRequired,
+  type: PropTypes.string.isRequired,
+  collapsed: PropTypes.bool,
+  onToggle: PropTypes.func.isRequired,
+  onEdit: PropTypes.func,
+  onDelete: PropTypes.func,
+  children: PropTypes.node,
+};
+
+SectionContainer.defaultProps = {
+  collapsed: false,
+  onEdit: null,
+  onDelete: null,
+  children: null,
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#SECTION_TYPES">SECTION_TYPES</a></li><li><a href="global.html#ThemeContext">ThemeContext</a></li><li><a href="global.html#ThemeProvider">ThemeProvider</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#root">root</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.4</a> on Mon Aug 11 2025 15:47:53 GMT+0200 (heure d’été d’Europe centrale)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

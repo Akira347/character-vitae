@@ -4,6 +4,28 @@ import { Card, Image, Button, Modal, ProgressBar, Tab, Nav, Row, Col } from 'rea
 import CroMagnonAvatar from '../../assets/avatars/cro-magnon-v1.webp';
 import { ShoppingBag, Sword, Shield, Gift, Zap } from 'lucide-react';
 
+/**
+ * Panneau d’information sur l’avatar :
+ * - Affiche l’image, le nom, le poste, la spécialité, le niveau et la barre d’XP.
+ * - Permet de changer d’onglet d’inventaire et d’ouvrir la modale Contact.
+ *
+ * @typedef AvatarData
+ * @property {string} [avatarUrl]       URL personnalisée d’avatar (si fournie)
+ * @property {string} [nom]             Nom
+ * @property {string} [prenom]          Prénom
+ * @property {string} [pseudo]          Pseudo
+ * @property {string} [poste]           Poste recherché
+ * @property {string} [specialite]      Spécialité
+ * @property {number} [level]           Niveau global
+ * @property {number} [xp]              Expérience globale
+ * @property {object} [contact]         Infos de contact
+ * @property {object} [inventory]       Inventaire par catégorie
+ *
+ * @param {object} props                Les props du composant
+ * @param {AvatarData} [props.data]     Données initiales de l'avatar (optionnel, voir Properties)
+ * @param {Function} props.onEditAvatar Callback pour éditer l’avatar
+ * @returns {JSX.Element}               Le rendu du composant AvatarInfoPanel
+ */
 export default function AvatarInfoPanel({ data = {}, onEditAvatar }) {
   const {
     nom = '',

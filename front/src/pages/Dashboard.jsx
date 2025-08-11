@@ -22,6 +22,14 @@ import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
 
 import { useDragDrop, DroppableZone } from '../tools/dragDrop';
 
+/**
+ * Tableau de bord principal :
+ * - Palette de sections / Avatar & Infos à gauche
+ * - Canvas de sections à droite
+ * - Gestion drag&drop via DnD-kit
+ *
+ * @returns {JSX.Element} Le rendu du composant Dashboard
+ */
 export default function Dashboard() {
   const TOTAL_SLOTS = 15;
   const [sections, setSections] = useState(() => {

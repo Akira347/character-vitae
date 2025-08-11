@@ -2,6 +2,12 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
+/**
+ * Aperçu en lecture seule du contenu d’une section.
+ *
+ * @param {any} data      Contenu de la section (objet, tableau, string ou number)
+ * @returns {JSX.Element} Le rendu du composant SectionPreview
+ */
 export default function SectionPreview({ data }) {
   return (
     <div className="preview-card">

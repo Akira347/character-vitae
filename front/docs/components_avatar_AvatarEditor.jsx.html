@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/avatar/AvatarEditor.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/avatar/AvatarEditor.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// src/components/section/AvatarEditor.jsx
+import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
+import { Modal, Button, Form, Row, Col, Image } from 'react-bootstrap';
+import CroMagnonAvatar from '../../assets/avatars/cro-magnon-v1.webp';
+
+/**
+ * Affiche une modale permettant de personnaliser un avatar :
+ * - Choix du sexe, de l’affichage (avatar fictif / photo / auto)
+ * - Upload ou URL d’une photo
+ * - Aperçu du résultat
+ *
+ * @component
+ * @param {object} props            - The component accepts show, data, onSave and onCancel as props
+ * @param {boolean} props.show            – Affiche la modale si true
+ * @param {Object} props.data             – Données initiales de l’avatar
+ * @param {"Homme"|"Femme"} props.data.sexe        – Sexe sélectionné
+ * @param {"avatar"|"photo"|"auto"} props.data.affichage – Mode d’affichage par défaut
+ * @param {string} [props.data.photoUrl]  – URL de la photo personnelle
+ * @param {File|null} [props.data.uploadedFile] – Fichier uploadé
+ * @param {function(object):void} props.onSave   – Callback appelé avec les données du formulaire
+ * @param {function():void} props.onCancel        – Callback pour fermer la modale sans sauvegarder
+ * @returns {JSX.ELement}            – Le composant AvatarEditor
+ */
+export default function AvatarEditor({ show, data, onSave, onCancel }) {
+  // état local
+  const [formData, setFormData] = useState({
+    sexe: 'Homme',
+    affichage: 'avatar', // 'photo' | 'avatar' | 'auto'
+    photoUrl: '',
+    uploadedFile: null,
+    ...data,
+  });
+
+  // sync quand data change
+  useEffect(() => {
+    setFormData({
+      sexe: data.sexe ?? 'Homme',
+      affichage: data.affichage ?? 'avatar',
+      photoUrl: data.photoUrl ?? '',
+      uploadedFile: null,
+    });
+  }, [data]);
+
+  // gestion du drop de fichier
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      setFormData((fd) => ({ ...fd, uploadedFile: file }));
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFormData((fd) => ({ ...fd, uploadedFile: file }));
+    }
+  };
+
+  const handleSubmit = () => {
+    onSave(formData);
+  };
+
+  return (
+    &lt;Modal show={show} onHide={onCancel} centered size="lg">
+      &lt;Modal.Header closeButton>
+        &lt;Modal.Title>Personnalisation de l&amp;apos;avatar&lt;/Modal.Title>
+      &lt;/Modal.Header>
+
+      &lt;Modal.Body>
+        &lt;Form>
+          &lt;Form.Group className="mb-3">
+            &lt;Form.Label>Sexe du personnage&lt;/Form.Label>
+            &lt;Form.Select
+              value={formData.sexe}
+              onChange={(e) => setFormData({ ...formData, sexe: e.target.value })}
+            >
+              &lt;option>Homme&lt;/option>
+              &lt;option>Femme&lt;/option>
+            &lt;/Form.Select>
+          &lt;/Form.Group>
+
+          &lt;Form.Group className="mb-4">
+            &lt;Form.Label>Affichage par défaut&lt;/Form.Label>
+            &lt;div>
+              &lt;Form.Check
+                inline
+                type="radio"
+                label="Avatar fictif"
+                name="affichage"
+                checked={formData.affichage === 'avatar'}
+                onChange={() => setFormData({ ...formData, affichage: 'avatar' })}
+              />
+              &lt;Form.Check
+                inline
+                type="radio"
+                label="Photo personnelle"
+                name="affichage"
+                checked={formData.affichage === 'photo'}
+                onChange={() => setFormData({ ...formData, affichage: 'photo' })}
+              />
+              &lt;Form.Check
+                inline
+                type="radio"
+                label="Laisser le choix au visiteur"
+                name="affichage"
+                checked={formData.affichage === 'auto'}
+                onChange={() => setFormData({ ...formData, affichage: 'auto' })}
+              />
+            &lt;/div>
+          &lt;/Form.Group>
+
+          {(formData.affichage === 'photo' || formData.affichage === 'auto') &amp;&amp; (
+            &lt;>
+              &lt;Form.Group className="mb-3">
+                &lt;Form.Label>URL de la photo personnelle&lt;/Form.Label>
+                &lt;Form.Control
+                  type="url"
+                  placeholder="https://..."
+                  value={formData.photoUrl}
+                  onChange={(e) => setFormData({ ...formData, photoUrl: e.target.value })}
+                />
+              &lt;/Form.Group>
+
+              &lt;div className="text-center my-2">— ou —&lt;/div>
+
+              &lt;Form.Group className="mb-4">
+                &lt;Form.Label>Fichier local&lt;/Form.Label>
+                &lt;div
+                  onDrop={handleDrop}
+                  onDragOver={(e) => e.preventDefault()}
+                  onClick={() => document.getElementById('fileInput').click()}
+                  style={{
+                    border: '2px dashed #ccc',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    background: '#f8f9fa',
+                  }}
+                >
+                  {formData.uploadedFile ? (
+                    &lt;span>{formData.uploadedFile.name}&lt;/span>
+                  ) : (
+                    &lt;span>Glissez un fichier ici ou cliquez pour parcourir&lt;/span>
+                  )}
+                  &lt;input
+                    type="file"
+                    accept="image/*"
+                    id="fileInput"
+                    style={{ display: 'none' }}
+                    onChange={handleFileSelect}
+                  />
+                &lt;/div>
+              &lt;/Form.Group>
+            &lt;/>
+          )}
+
+          {/* Aperçus */}
+          &lt;Row className="text-center gy-3">
+            {(formData.affichage === 'avatar' || formData.affichage === 'auto') &amp;&amp; (
+              &lt;Col>
+                &lt;p>Avatar fictif&lt;/p>
+                &lt;Image src={CroMagnonAvatar} rounded fluid style={{ maxHeight: 150 }} />
+              &lt;/Col>
+            )}
+            {(formData.affichage === 'photo' || formData.affichage === 'auto') &amp;&amp; (
+              &lt;Col>
+                &lt;p>Photo personnelle&lt;/p>
+                {formData.uploadedFile || formData.photoUrl ? (
+                  &lt;Image
+                    src={
+                      formData.uploadedFile
+                        ? URL.createObjectURL(formData.uploadedFile)
+                        : formData.photoUrl
+                    }
+                    rounded
+                    fluid
+                    style={{ maxHeight: 150 }}
+                  />
+                ) : (
+                  &lt;div className="text-muted">Aucune photo disponible&lt;/div>
+                )}
+              &lt;/Col>
+            )}
+          &lt;/Row>
+        &lt;/Form>
+      &lt;/Modal.Body>
+
+      &lt;Modal.Footer>
+        &lt;Button variant="secondary" onClick={onCancel}>
+          Annuler
+        &lt;/Button>
+        &lt;Button variant="primary" onClick={handleSubmit}>
+          Enregistrer
+        &lt;/Button>
+      &lt;/Modal.Footer>
+    &lt;/Modal>
+  );
+}
+
+AvatarEditor.propTypes = {
+  show: PropTypes.bool.isRequired,
+  data: PropTypes.shape({
+    sexe: PropTypes.oneOf(['Homme', 'Femme']),
+    affichage: PropTypes.oneOf(['avatar', 'photo', 'auto']),
+    photoUrl: PropTypes.string,
+  }),
+  onSave: PropTypes.func.isRequired,
+  onCancel: PropTypes.func.isRequired,
+};
+
+AvatarEditor.defaultProps = {
+  data: {},
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#SECTION_TYPES">SECTION_TYPES</a></li><li><a href="global.html#ThemeContext">ThemeContext</a></li><li><a href="global.html#ThemeProvider">ThemeProvider</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#root">root</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.4</a> on Mon Aug 11 2025 15:47:53 GMT+0200 (heure d’été d’Europe centrale)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

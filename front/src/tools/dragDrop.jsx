@@ -3,11 +3,33 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 
-// Hook custom pour initialiser les sensors et le handler
+/**
+ * Hook de drag & drop pour le canvas des sections.
+ *
+ * Fournit les sensors pour dnd-kit, l'identifiant actif et le handler
+ * de fin de drag (réordonnancement / création / suppression).
+ *
+ * @param {Array.<Object>} sections - tableau courant des sections (chaque section est un objet)
+ * @param {Function} setSections - setter React pour mettre à jour `sections`
+ * @returns {{sensors: Object, handleDragEnd: Function, activeId: (string|null), setActiveId: Function}}  Les functions et élements de drag&drop
+ */
 export function useDragDrop(sections, setSections) {
   const sensors = useSensors(useSensor(PointerSensor));
   const [activeId, setActiveId] = React.useState(null);
 
+  /**
+   * Handler appelé par dnd-kit à la fin du drag.
+   *
+   * Gère trois cas :
+   *  - canvas -> placeholder (sec-… -> empty-…) : on déplace l'item et on remet un placeholder
+   *  - reorder interne canvas (sec-… -> sec-…) : on réordonne
+   *  - suppression vers palette (sec-… -> palette) : on remplace par un placeholder
+   *
+   * @param {Object} event - objet d'événement fourni par dnd-kit
+   * @param {Object} event.active - item actif (ex: { id: 'sec-123' } ou 'type-Identité' depuis la palette)
+   * @param {Object|null} event.over - zone d'arrivée (peut être null)
+   * @returns {void}
+   */
   function handleDragEnd(event) {
     const { active, over } = event;
     if (!over) return;
@@ -55,6 +77,16 @@ export function useDragDrop(sections, setSections) {
   return { sensors, handleDragEnd, activeId, setActiveId };
 }
 
+/**
+ * Zone droppable générique (utilisée pour la palette / canvas slots).
+ *
+ * @param {object} props                              Props du composant (destructurées ci-dessous)
+ * @param {string} props.id                           Identifiant unique de la zone droppable
+ * @param {Element|React.ReactNode} [props.children]  Contenu à afficher dans la zone
+ * @param {Object} [props.style]                      Styles inline optionnels
+ * @param {string} [props.className]                  Classe CSS optionnelle
+ * @returns {Element}                                 Élément DOM racine de la zone
+ */
 export function DroppableZone({ id, children, style, className }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (

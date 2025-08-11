@@ -5,6 +5,12 @@ import Layout from './components/structure/Layout';
 import Dashboard from './pages/Dashboard';
 import NotFoundPage from './pages/NotFoundPage';
 
+/**
+ * Point d’entrée de l’application.
+ * Monte le ThemeProvider, le Router et le Layout.
+ *
+ * @returns {JSX.Element} Le rendu du composant App
+ */
 export default function App() {
   return (
     <ThemeProvider>
