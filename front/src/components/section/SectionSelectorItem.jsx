@@ -27,6 +27,14 @@ const ICONS = {
   Hobbies: Guitar,
 };
 
+/**
+ * Élément de la palette draggable + bouton d’ajout.
+ *
+ * @param {object} props                Props du composant
+ * @param {string} props.type           Type de section sélectionnée (ex: "Identité")
+ * @param {Function} props.onAddSection Callback appelé avec (type) au clic sur "+"
+ * @returns {JSX.Element}               Le rendu du composant SectionSelectorItem
+ */
 export default function SectionSelectorItem({ type, onAddSection }) {
   // Hook dnd-kit pour rendre l'élément draggable
   const { attributes, listeners, setNodeRef, transform, transition } = useDraggable({

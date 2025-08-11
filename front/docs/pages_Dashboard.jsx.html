@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pages/Dashboard.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pages/Dashboard.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import '../styles/Dashboard.css';
+
+import React, { useState } from 'react';
+import { Row, Col, Card, Container } from 'react-bootstrap';
+import SectionSelector from '../components/section/SectionSelector';
+import SectionForm from '../components/section/SectionForm';
+import { SECTION_TYPES } from '../constants/sectionTypes';
+import AvatarEditor from '../components/avatar/AvatarEditor';
+import SectionContainer from '../components/section/SectionContainer';
+import SectionPreview from '../components/section/SectionPreview';
+import AvatarInfoPanel from '../components/avatar/AvatarInfoPanel';
+
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+} from '@dnd-kit/core';
+import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
+
+import { useDragDrop, DroppableZone } from '../tools/dragDrop';
+
+/**
+ * Tableau de bord principal :
+ * - Palette de sections / Avatar &amp; Infos à gauche
+ * - Canvas de sections à droite
+ * - Gestion drag&amp;drop via DnD-kit
+ *
+ * @returns {JSX.Element}
+ */
+export default function Dashboard() {
+  const TOTAL_SLOTS = 15;
+  const [sections, setSections] = useState(() => {
+    const real = [];
+    const empties = Array.from({ length: TOTAL_SLOTS - real.length }).map(() => ({
+      type: 'empty',
+    }));
+    return [...real, ...empties];
+  });
+
+  const [activeTab, setActiveTab] = useState('sections');
+  const [editing, setEditing] = useState({ show: false, sectionId: null });
+
+  const [avatarData, setAvatarData] = useState({
+    sexe: 'Homme',
+    affichage: 'avatar',
+    photoUrl: '',
+  });
+  const [avatarEditing, setAvatarEditing] = useState(false);
+
+  // Hook DnD
+  const { handleDragEnd, activeId, setActiveId } = useDragDrop(sections, setSections);
+  const sensor = useSensor(PointerSensor);
+
+  const handleAddSection = (type) => {
+    // si déjà posée, on ne ré-ajoute pas
+    if (sections.some((s) => s.type === type)) return;
+    // on trouve le premier slot vide
+    const idx = sections.findIndex((s) => s.type === 'empty');
+    if (idx === -1) return; // plus de place
+    const newSection = {
+      id: `sec-${Date.now()}`,
+      type,
+      content: [],
+      collapsed: false,
+    };
+    setSections((prev) => {
+      const copy = [...prev];
+      copy[idx] = newSection; // on remplace l’empty slot
+      return copy;
+    });
+    setEditing({ show: true, sectionId: newSection.id });
+  };
+
+  const handleRemoveSection = (id) => {
+    setSections((prev) => {
+      const idx = prev.findIndex((s) => s.id === id);
+      if (idx === -1) return prev;
+      const copy = [...prev];
+      copy[idx] = { type: 'empty' }; // on remet un placeholder
+      return copy;
+    });
+  };
+
+  // Au lieu de handleAddSectionClick, on gère tous les clics “éditer”
+  const handleEditClick = (id) => {
+    if (id === 'sec-avatar') {
+      setAvatarEditing(true);
+    } else {
+      setEditing({ show: true, sectionId: id });
+    }
+  };
+
+  const toggleCollapse = (id) => {
+    setSections((secs) => secs.map((s) => (s.id === id ? { ...s, collapsed: !s.collapsed } : s)));
+  };
+
+  return (
+    &lt;DndContext
+      sensors={useSensors(sensor)}
+      collisionDetection={closestCenter}
+      onDragStart={({ active }) => setActiveId(active.id)}
+      onDragEnd={(event) => {
+        const { active, over } = event;
+
+        // 1) Si palette→placeholder => on gère nous-mêmes la création + modale
+        if (active.id.startsWith('type-') &amp;&amp; over?.id?.startsWith('empty-')) {
+          const placeIdx = parseInt(over.id.replace('empty-', ''), 10);
+          const typeName = active.id.replace(/^type-/, '');
+          const newId = `sec-${Date.now()}`;
+          const newSection = {
+            id: newId,
+            type: typeName,
+            content: [],
+            collapsed: false,
+          };
+
+          setSections((prev) => {
+            const copy = [...prev];
+            copy[placeIdx] = newSection;
+            return copy;
+          });
+          // **ouvrir** la modale sur ce nouvel id
+          setEditing({ show: true, sectionId: newId });
+          return;
+        }
+
+        // 2) sinon on laisse handleDragEnd faire son boulot (reorder, palette→canvas, suppression…)
+        handleDragEnd(event);
+      }}
+      onDragCancel={() => setActiveId(null)}
+    >
+      &lt;Row className="gy-4">
+        {/* Palette */}
+        &lt;Col xs={12} md={3} lg={2}>
+          &lt;DroppableZone id="palette" style={{ padding: 0 }}>
+            &lt;div className="section-sidebar">
+              &lt;div className="tab-switcher">
+                &lt;button
+                  className={activeTab === 'sections' ? 'active' : ''}
+                  onClick={() => setActiveTab('sections')}
+                >
+                  Sections
+                &lt;/button>
+                &lt;button
+                  className={activeTab === 'avatar' ? 'active' : ''}
+                  onClick={() => setActiveTab('avatar')}
+                >
+                  Avatar &amp; Infos
+                &lt;/button>
+              &lt;/div>
+
+              &lt;div className="tab-content">
+                {activeTab === 'sections' ? (
+                  &lt;SectionSelector
+                    availableTypes={SECTION_TYPES.filter(
+                      (t) => !sections.some((s) => s.type === t),
+                    )}
+                    onAddSection={handleAddSection}
+                  />
+                ) : (
+                  &lt;AvatarInfoPanel data={avatarData} onEditAvatar={() => setAvatarEditing(true)} />
+                )}
+              &lt;/div>
+            &lt;/div>
+          &lt;/DroppableZone>
+        &lt;/Col>
+
+        {/* Canvas &amp; Avatar */}
+        &lt;Col xs={12} md={9} lg={10}>
+          &lt;Container fluid className="p-0">
+            &lt;Card className="mb-4">
+              &lt;Card.Body className="dashboard-sections">
+                &lt;SortableContext items={sections.map((s) => s.id)} strategy={rectSortingStrategy}>
+                  {sections.map((sec, idx) => (
+                    &lt;SectionContainer
+                      key={sec.id ?? `empty-${idx}`}
+                      id={sec.id ?? `empty-${idx}`}
+                      type={sec.type}
+                      onToggle={toggleCollapse}
+                      onEdit={sec.type !== 'empty' ? handleEditClick : null}
+                      onDelete={
+                        sec.type === 'empty' || sec.id === 'sec-avatar' ? null : handleRemoveSection
+                      }
+                      collapsed={sec.collapsed}
+                      isDragging={activeId === sec.id}
+                    >
+                      {sec.type !== 'empty' &amp;&amp; (
+                        &lt;div className="section-content">
+                          &lt;SectionPreview type={sec.type} data={sec.content} />
+                        &lt;/div>
+                      )}
+                    &lt;/SectionContainer>
+                  ))}
+                &lt;/SortableContext>
+              &lt;/Card.Body>
+            &lt;/Card>
+
+            {/* Formulaire de section*/}
+            &lt;SectionForm
+              show={editing.show}
+              type={sections.find((s) => s.id === editing.sectionId)?.type}
+              initialData={sections.find((s) => s.id === editing.sectionId)?.content}
+              onSave={(data) => {
+                setSections((prev) =>
+                  prev.map((s) => (s.id === editing.sectionId ? { ...s, content: data } : s)),
+                );
+                setEditing({ show: false, sectionId: null });
+              }}
+              onCancel={() => setEditing({ show: false, sectionId: null })}
+            />
+
+            {/* pour l’avatar */}
+            &lt;AvatarEditor
+              show={avatarEditing}
+              data={avatarData}
+              onSave={(newAvatarData) => {
+                setAvatarData(newAvatarData);
+                setAvatarEditing(false);
+              }}
+              onCancel={() => setAvatarEditing(false)}
+            />
+          &lt;/Container>
+        &lt;/Col>
+      &lt;/Row>
+
+      {/* Overlay pendant le drag */}
+      &lt;DragOverlay>
+        {activeId?.startsWith('type-') &amp;&amp; (
+          &lt;div className="p-2 bg-warning border">
+            &lt;strong>{activeId.replace('type-', '')}&lt;/strong>
+          &lt;/div>
+        )}
+        {sections.find((s) => s.id === activeId) &amp;&amp; (
+          &lt;div className="p-2 bg-info border">
+            &lt;strong>{sections.find((s) => s.id === activeId)?.type}&lt;/strong>
+          &lt;/div>
+        )}
+      &lt;/DragOverlay>
+    &lt;/DndContext>
+  );
+}
+
+// Futur appel API pour persister côté serveur
+// try {
+//   await fetch(`/api/characters/${characterId}/sections`, {
+//     method: 'POST', // ou PUT si tu mets à jour
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({
+//       sectionId: editing.sectionId,
+//       type: /* le type */,
+//       content: data
+//     })
+//   });
+// } catch (err) {
+//   console.error('Erreur de sauvegarde', err);
+//   // idéalement, remonter l’erreur à l’utilisateur
+// }
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#SECTION_TYPES">SECTION_TYPES</a></li><li><a href="global.html#ThemeContext">ThemeContext</a></li><li><a href="global.html#ThemeProvider">ThemeProvider</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#root">root</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.4</a> on Mon Aug 11 2025 15:47:53 GMT+0200 (heure d’été d’Europe centrale)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

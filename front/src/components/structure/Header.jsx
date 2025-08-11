@@ -1,9 +1,16 @@
-// src/components/structure/Header.jsx
 import React, { useState } from 'react';
 import { Navbar, Container, Nav, Modal, Button, Form } from 'react-bootstrap';
 import PlumeIcon from '../../assets/icons/plume.png';
 import { Link } from 'react-router-dom';
 
+/**
+ * Header principal de l’application.
+ *
+ * Affiche la marque, l’icône de connexion et gère l’ouverture
+ * de la modale de login.
+ *
+ * @returns {JSX.Element} Le rendu du composant Header
+ */
 export default function Header() {
   const [show, setShow] = useState(false);
   return (

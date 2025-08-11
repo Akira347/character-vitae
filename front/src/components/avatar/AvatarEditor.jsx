@@ -4,6 +4,22 @@ import PropTypes from 'prop-types';
 import { Modal, Button, Form, Row, Col, Image } from 'react-bootstrap';
 import CroMagnonAvatar from '../../assets/avatars/cro-magnon-v1.webp';
 
+/**
+ * Modal pour personnaliser l'avatar (choix sexe, afficher avatar ou photo, upload...).
+ *
+ * @typedef AvatarData
+ * @property {'Homme'|'Femme'} [sexe]                   Sexe affiché par défaut
+ * @property {'avatar'|'photo'|'auto'} [affichage]      Mode d'affichage par défaut
+ * @property {string} [photoUrl]                        URL de la photo personnelle (si fournie)
+ * @property {File|null} [uploadedFile]                 Fichier image sélectionné par l'utilisateur
+ *
+ * @param {object} props                                Props du composant (destructurées ci-dessous)
+ * @param {boolean} props.show                          Si true, affiche la modale
+ * @param {AvatarData} [props.data]                     Données initiales de l'avatar (optionnel, voir Properties)
+ * @param {Function} props.onSave  Callback appelé lors de la sauvegarde avec les nouvelles données
+ * @param {Function} props.onCancel                   Callback appelé pour annuler/fermer la modale
+ * @returns {JSX.ELement}                               Élement React représentant la modale AvatarEditor
+ */
 export default function AvatarEditor({ show, data, onSave, onCancel }) {
   // état local
   const [formData, setFormData] = useState({

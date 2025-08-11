@@ -4,8 +4,20 @@ import PropTypes from 'prop-types';
 import { useSortable } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import '../../styles/Dashboard.css';
 
+/**
+ * Conteneur d’une section du CV (drag, resize, collapse, edit, delete).
+ *
+ * @param {object} props              Props du composant (destructurées ci-dessous)
+ * @param {string}   props.id         Identifiant unique de la section
+ * @param {string}   props.type       Type de la section (ou "empty")
+ * @param {boolean}  [props.collapsed] Si true, la section est repliée
+ * @param {Function} props.onToggle   Fonction appelée avec (id) pour basculer collapsed
+ * @param {Function} [props.onEdit]   Fonction appelée avec (id) sur “Modifier”
+ * @param {Function} [props.onDelete] Fonction appelée avec (id) sur “Supprimer”
+ * @param {React.ReactNode} [props.children] Contenu interne de la section
+ * @returns {JSX.Element}             Le rendu du composant SectionContainer
+ */
 export default function SectionContainer({
   id,
   type,

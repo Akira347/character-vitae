@@ -7,7 +7,10 @@
     "lint": "eslint \"src/**/*.{js,jsx}\"",
     "format": "prettier --write \"src/**/*.{js,jsx,css,html,json,md}\"",
     "format-check": "prettier --check \"src/**/*.{js,jsx,css,html,json,md}\"",
-    "test": "jest"
+    "test": "jest",
+    "docs:build": "npx documentation build \"src/**/*.{js,jsx}\" -f html -o docs",
+    "docs:md": "npx documentation build \"src/**/*.{js,jsx}\" -f md -o docs/API.md",
+    "docs:serve": "npx serve docs"
   },
   "jest": {
     "testEnvironment": "jsdom",
@@ -52,6 +55,7 @@
     "@vitejs/plugin-react": "^4.6.0",
     "babel-jest": "^30.0.5",
     "eslint": "^8.57.1",
+    "eslint-plugin-jsdoc": "^50.8.0",
     "eslint-plugin-react": "^7.37.5",
     "globals": "^16.3.0",
     "husky": "^8.0.0",

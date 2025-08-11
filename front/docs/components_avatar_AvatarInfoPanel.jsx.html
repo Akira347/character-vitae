@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/avatar/AvatarInfoPanel.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/avatar/AvatarInfoPanel.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React, { useState } from 'react';
+import PropTypes from 'prop-types';
+import { Card, Image, Button, Modal, ProgressBar, Tab, Nav, Row, Col } from 'react-bootstrap';
+import CroMagnonAvatar from '../../assets/avatars/cro-magnon-v1.webp';
+import { ShoppingBag, Sword, Shield, Gift, Zap } from 'lucide-react';
+
+/**
+ * Panneau d’information sur l’avatar :
+ * - Affiche l’image, le nom, le poste, la spécialité, le niveau et la barre d’XP.
+ * - Permet de changer d’onglet d’inventaire et d’ouvrir la modale Contact.
+ *
+ * @param {object} data — données du personnage
+ * @param {string} [data.avatarUrl] — URL personnalisée d’avatar
+ * @param {string} [data.nom]
+ * @param {string} [data.prenom]
+ * @param {string} [data.pseudo]
+ * @param {string} [data.poste]
+ * @param {string} [data.specialite]
+ * @param {number} [data.level]
+ * @param {number} [data.xp]
+ * @param {object} [data.contact] — infos de contact
+ * @param {object} [data.inventory] — inventaire par catégorie
+ * @param {Function} onEditAvatar — callback pour éditer l’avatar
+ * @returns {JSX.Element}
+ */
+export default function AvatarInfoPanel({ data = {}, onEditAvatar }) {
+  const {
+    nom = '',
+    prenom = '',
+    pseudo = '',
+    poste = '',
+    specialite = '',
+    level = 1,
+    xp = 0,
+    contact = {},
+    inventory = {},
+  } = data;
+
+  const [showContact, setShowContact] = useState(false);
+  const [activeTab, setActiveTab] = useState('sac');
+
+  const TABS = [
+    { key: 'sac', icon: &lt;ShoppingBag size={20} />, label: 'Sac' },
+    { key: 'armes', icon: &lt;Sword size={20} />, label: 'Armes' },
+    { key: 'armures', icon: &lt;Shield size={20} />, label: 'Armures' },
+    { key: 'bijoux', icon: &lt;Gift size={20} />, label: 'Bijoux' },
+    { key: 'magie', icon: &lt;Zap size={20} />, label: 'Magie' },
+  ];
+
+  // show up to 10 slots per category
+  const slots = Array.from({ length: 10 }, (_, i) => inventory[activeTab]?.[i] || null);
+
+  return (
+    &lt;>
+      &lt;Card className="avatar-info-panel">
+        &lt;Card.Body className="text-center">
+          &lt;Image
+            src={data.avatarUrl || CroMagnonAvatar}
+            roundedCircle
+            fluid
+            style={{ maxWidth: 120, marginBottom: '1rem', cursor: 'pointer' }}
+            onClick={onEditAvatar}
+            aria-label="Modifier l'avatar"
+          />
+          &lt;h5 className="mb-1">
+            {prenom} {pseudo &amp;&amp; `"${pseudo}"`} {nom}
+          &lt;/h5>
+          {poste &amp;&amp; &lt;div className="text-muted mb-1">{poste}&lt;/div>}
+          {specialite &amp;&amp; &lt;div className="mb-2">Spécialité : {specialite}&lt;/div>}
+
+          &lt;div className="mb-2">
+            &lt;strong>Niveau {level}&lt;/strong>
+            &lt;ProgressBar now={xp} label={`${xp}%`} className="mt-1" />
+          &lt;/div>
+
+          &lt;Button variant="outline-primary" size="sm" onClick={() => setShowContact(true)}>
+            Contact
+          &lt;/Button>
+        &lt;/Card.Body>
+
+        &lt;Card.Footer>
+          &lt;Tab.Container activeKey={activeTab} onSelect={setActiveTab}>
+            &lt;Nav variant="tabs" className="justify-content-center">
+              {TABS.map((tab) => (
+                &lt;Nav.Item key={tab.key}>
+                  &lt;Nav.Link eventKey={tab.key}>{tab.icon}&lt;/Nav.Link>
+                &lt;/Nav.Item>
+              ))}
+            &lt;/Nav>
+            &lt;Tab.Content className="mt-3">
+              &lt;Tab.Pane eventKey={activeTab}>
+                &lt;Row xs={5} className="g-2">
+                  {slots.map((item, idx) => (
+                    &lt;Col key={idx} className="text-center">
+                      &lt;div className="inventory-slot">
+                        {item ? (
+                          &lt;Image src={item.icon} thumbnail />
+                        ) : (
+                          &lt;div className="empty-slot">—&lt;/div>
+                        )}
+                      &lt;/div>
+                    &lt;/Col>
+                  ))}
+                &lt;/Row>
+              &lt;/Tab.Pane>
+            &lt;/Tab.Content>
+          &lt;/Tab.Container>
+        &lt;/Card.Footer>
+      &lt;/Card>
+
+      {/* Contact Modal */}
+      &lt;Modal show={showContact} onHide={() => setShowContact(false)} centered>
+        &lt;Modal.Header closeButton>
+          &lt;Modal.Title>Contact&lt;/Modal.Title>
+        &lt;/Modal.Header>
+        &lt;Modal.Body>
+          {contact.phone &amp;&amp; &lt;p>Téléphone : {contact.phone}&lt;/p>}
+          {contact.email &amp;&amp; &lt;p>E-mail : {contact.email}&lt;/p>}
+          {contact.address &amp;&amp; &lt;p>Adresse : {contact.address}&lt;/p>}
+          {!contact.phone &amp;&amp; !contact.email &amp;&amp; !contact.address &amp;&amp; (
+            &lt;p className="text-muted">Aucune information de contact fournie.&lt;/p>
+          )}
+        &lt;/Modal.Body>
+        &lt;Modal.Footer>
+          &lt;Button variant="secondary" onClick={() => setShowContact(false)}>
+            Fermer
+          &lt;/Button>
+        &lt;/Modal.Footer>
+      &lt;/Modal>
+    &lt;/>
+  );
+}
+
+AvatarInfoPanel.propTypes = {
+  data: PropTypes.shape({
+    avatarUrl: PropTypes.string,
+    nom: PropTypes.string,
+    prenom: PropTypes.string,
+    pseudo: PropTypes.string,
+    poste: PropTypes.string,
+    specialite: PropTypes.string,
+    level: PropTypes.number,
+    xp: PropTypes.number,
+    contact: PropTypes.shape({
+      phone: PropTypes.string,
+      email: PropTypes.string,
+      address: PropTypes.string,
+    }),
+    inventory: PropTypes.objectOf(
+      PropTypes.arrayOf(
+        PropTypes.shape({
+          icon: PropTypes.string, // URL to item icon
+        }),
+      ),
+    ),
+  }).isRequired,
+  onEditAvatar: PropTypes.func.isRequired,
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#SECTION_TYPES">SECTION_TYPES</a></li><li><a href="global.html#ThemeContext">ThemeContext</a></li><li><a href="global.html#ThemeProvider">ThemeProvider</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#root">root</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.4</a> on Mon Aug 11 2025 15:47:53 GMT+0200 (heure d’été d’Europe centrale)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

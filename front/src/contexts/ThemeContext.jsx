@@ -1,6 +1,10 @@
 import React, { createContext } from 'react';
 import PropTypes from 'prop-types';
 
+/**
+ * Contexte de thème global (couleurs, polices, espacements).
+ * Permet de récupérer les variables CSS définies dans :root.
+ */
 export const ThemeContext = createContext({
   colors: {
     primary: 'var(--text-color)',
@@ -13,6 +17,12 @@ export const ThemeContext = createContext({
   spacing: (n) => `calc(var(--spacer) * ${n})`,
 });
 
+/**
+ * Provider qui enveloppe l’application et expose le contexte.
+ *
+ * @param {{children: React.ReactNode}} children  Noeuds enfants du ThemeContext
+ * @returns {JSX.Element} Le ThemeProvider
+ */
 export function ThemeProvider({ children }) {
   return (
     <ThemeContext.Provider value={React.useContext(ThemeContext)}>{children}</ThemeContext.Provider>

@@ -3,9 +3,25 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Modal, Button, Form } from 'react-bootstrap';
 
-// Normalisation simple : on retire les espaces et on passe en minuscules
+/**
+ * Remplace les espaces et tirets d'une chaîne pour la normaliser.
+ *
+ * @param {string} s — Chaîne d’entrée
+ * @returns {string} Chaîne normalisée sans espace ni tiret
+ */
 const normalize = (s) => s.replace(/\s|-/g, '').toLowerCase();
 
+/**
+ * Formulaire modale pour éditer une section (mono-entrée ou multi-entrée).
+ *
+ * @param {object} props                      Les props du composant
+ * @param {boolean} props.show                Affiche la modale si true
+ * @param {string} props.type                 Type de section à éditer
+ * @param {object|Array} [props.initialData]  Données initiales du formulaire
+ * @param {Function} props.onSave             Callback avec formData à l’enregistrement
+ * @param {Function} props.onCancel           Callback pour fermer sans sauvegarder
+ * @returns {JSX.Element}                     Élement React représentant la modale SectionForm
+ */
 export default function SectionForm({ show, type, initialData, onSave, onCancel }) {
   // Types à traiter en « multi »
   const MULTI = ['qualités', 'langues', 'hobbies', 'hautsfaits', 'talents'].map(normalize);

@@ -4,6 +4,19 @@ import PropTypes from 'prop-types';
 import { Row, Col, Image } from 'react-bootstrap';
 import CroMagnonAvatar from '../../assets/avatars/cro-magnon-v1.webp';
 
+/**
+ * Aperçu simple de l’avatar :
+ * - Affiche soit l’avatar fictif, soit la photo perso, ou les deux si mode "auto".
+ *
+ * @typedef AvatarData
+ * @property {'avatar'|'photo'|'auto'} [affichage]  Mode d'affichage par défaut
+ * @property {string} [photoUrl]                    URL de la photo personnelle (si fournie)
+ * @property {File|null} [uploadedFile]             Fichier image sélectionné par l'utilisateur
+ *
+ * @param {object} props                            Props du composant (destructurées ci-dessous)
+ * @param {AvatarData} [props.data]                 Données initiales de l'avatar (optionnel, voir Properties)
+ * @returns {JSX.Element}                           Le rendu du composant AvatarPreview
+ */
 export default function AvatarPreview({ data }) {
   const { affichage, photoUrl } = data;
 
