@@ -4,7 +4,7 @@
 
 namespace App\Entity;
 
-use ApiPlatform\Metadata\ApiResource; // si API Platform installé
+use ApiPlatform\Metadata\ApiResource;
 use App\Repository\UserRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -13,14 +13,16 @@ use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Serializer\Annotation\Groups;
 use Symfony\Component\Serializer\Annotation\SerializedName;
+use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
+// garder le quoting si tu veux la table nommée "user" explicitement
 #[ORM\Table(name: '`user`')]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
-#[ApiResource( // retire si tu ne veux pas l'exposer via API Platform
+#[ApiResource(
     normalizationContext: ['groups' => ['user:read']],
     denormalizationContext: ['groups' => ['user:write']],
-    security: "is_granted('ROLE_ADMIN') or object == user" // optionnel
+    security: "is_granted('ROLE_ADMIN') or object == user"
 )]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
@@ -31,14 +33,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?int $id = null;
 
     #[ORM\Column(length: 180)]
+    #[Assert\NotBlank(message: "L'email est requis.")]
+    #[Assert\Email(message: "Le format de l'email n'est pas valide.")]
     #[Groups(['user:read', 'user:write'])]
     private ?string $email = null;
 
     /** @var list<string> */
-    #[ORM\Column]
+    // explicit JSON type to match migration / DB
+    #[ORM\Column(type: 'json')]
     private array $roles = [];
 
-    #[ORM\Column]
+    // password PHP property nullable -> make column nullable to match
+    #[ORM\Column(length: 255, nullable: true)]
     private ?string $password = null;
 
     #[ORM\Column(length: 100, nullable: true)]
@@ -48,6 +54,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 100, nullable: true)]
     #[Groups(['user:read', 'user:write'])]
     private ?string $lastName = null;
+
+    // champs pour confirmation par email
+    #[ORM\Column(type: 'string', length: 64, nullable: true)]
+    private ?string $confirmationToken = null;
+
+    #[ORM\Column(type: 'boolean')]
+    private bool $isConfirmed = false;
 
     /**
      * @var Collection<int, Character>
@@ -60,6 +73,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->characters = new ArrayCollection();
     }
 
+    // ... le reste de tes getters/setters inchangés ...
     public function getId(): ?int
     {
         return $this->id;
@@ -143,6 +157,30 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setLastName(?string $lastName): static
     {
         $this->lastName = $lastName;
+
+        return $this;
+    }
+
+    public function getConfirmationToken(): ?string
+    {
+        return $this->confirmationToken;
+    }
+
+    public function setConfirmationToken(?string $token): static
+    {
+        $this->confirmationToken = $token;
+
+        return $this;
+    }
+
+    public function isConfirmed(): bool
+    {
+        return $this->isConfirmed;
+    }
+
+    public function setIsConfirmed(bool $confirmed): static
+    {
+        $this->isConfirmed = $confirmed;
 
         return $this;
     }

@@ -15,7 +15,7 @@ class CspListener
         $this->policy = $policy;
     }
 
-    public function onKernelResponse(ResponseEvent $event)
+    public function onKernelResponse(ResponseEvent $event): void
     {
         $response = $event->getResponse();
         $response->headers->set('Content-Security-Policy', $this->policy);
