@@ -33,3 +33,8 @@ services:
             $policy: "default-src 'self'; img-src 'self' data: https://your-cdn.example; script-src 'self' 'sha256-...';"
         tags:
             - { name: kernel.event_listener, event: kernel.response, method: onKernelResponse }
+
+    App\OpenApi\JwtDecorator:
+        decorates: 'api_platform.openapi.factory'
+        arguments: ['@App\OpenApi\JwtDecorator.inner']
+        public: false

@@ -1,12 +1,15 @@
 <?php
+
 // tests/Controller/AuthControllerTest.php
+
 namespace App\Tests\Controller;
 
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
-use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\FrameworkBundle\Test\MailerAssertionsTrait;
 
 class AuthControllerTest extends WebTestCase
 {
+    use MailerAssertionsTrait;
     private $client;
     private $em;
 
@@ -26,7 +29,7 @@ class AuthControllerTest extends WebTestCase
     {
         $payload = [
             'email' => 'testuser@example.com',
-            'password' => 'password123'
+            'password' => 'password123',
         ];
 
         // 1) Register
@@ -36,7 +39,7 @@ class AuthControllerTest extends WebTestCase
             [],
             [],
             ['CONTENT_TYPE' => 'application/json'],
-            json_encode($payload)
+            \json_encode($payload)
         );
 
         $resp = $this->client->getResponse();
@@ -47,29 +50,56 @@ class AuthControllerTest extends WebTestCase
         $this->assertSame(
             201,
             $status,
-            sprintf("Expected 201 but got %d. Response body: %s", $status, $content)
+            \sprintf('Expected 201 but got %d. Response body: %s', $status, $content)
         );
 
-        $data = json_decode($content, true);
+        $data = \json_decode($content, true);
         $this->assertArrayHasKey('id', $data);
+
+        // assert user a confirmationToken ok
+        $user = $this->em->getRepository(\App\Entity\User::class)->find($data['id']);
+        $this->assertNotNull($user);
+        $this->assertNotNull($user->getConfirmationToken(), 'Expected confirmation token to be set.');
+        $this->assertFalse($user->isConfirmed());
 
         // 2) Se loguer / récupérer token
         // Selon ton système d'auth (login json, jwt, etc.), adapte la route & le parsing.
         // Exemple pour un endpoint /api/login qui renvoie { token: '...' } :
-        $this->client->request('POST','/api/login_check', [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
+        $this->client->request('POST', '/api/login_check', [], [], ['CONTENT_TYPE' => 'application/json'], \json_encode([
             'username' => $payload['email'],
             'password' => $payload['password'],
         ]));
 
-
         $this->assertSame(200, $this->client->getResponse()->getStatusCode(), 'Login failed: '.$this->client->getResponse()->getContent());
-        $tokenData = json_decode($this->client->getResponse()->getContent(), true);
+        $tokenData = \json_decode($this->client->getResponse()->getContent(), true);
         $this->assertArrayHasKey('token', $tokenData);
         $token = $tokenData['token'];
 
         // 3) GET /api/me avec Authorization header
         $this->client->request('GET', '/api/me', [], [], ['HTTP_Authorization' => 'Bearer '.$token]);
         $this->assertSame(200, $this->client->getResponse()->getStatusCode(), 'Me failed: '.$this->client->getResponse()->getContent());
+    }
+
+    public function testRegisterSendsEmail()
+    {
+        $payload = [
+            'email' => 'testuser@example.com',
+            'password' => 'password123',
+        ];
+
+        $this->client->request(
+            'POST',
+            '/api/register',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            \json_encode($payload)
+        );
+
+        $this->assertEmailCount(1);
+        $email = $this->getMailerMessage(0);
+        $this->assertEmailHeaderSame($email, 'To', 'testuser@example.com');
+        //$this->assertEmailTextContains($email, 'Confirmez votre adresse e-mail');
     }
 
     protected function tearDown(): void
@@ -81,3 +111,11 @@ class AuthControllerTest extends WebTestCase
         }
     }
 }
+
+
+    /**
+     * Register a new user.
+     *
+     * POST /api/register
+     * Body: { "email": "...", "password": "...", "fullname": "..." }
+     */

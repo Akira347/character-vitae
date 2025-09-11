@@ -14,6 +14,12 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Bridge\Twig\Mime\TemplatedEmail;
+use Symfony\Component\Uid\Uuid;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
 
 #[Route('/api', name: 'api_')]
 class AuthController extends AbstractController
@@ -23,6 +29,9 @@ class AuthController extends AbstractController
         private UserPasswordHasherInterface $passwordHasher,
         private ValidatorInterface $validator,
         private SerializerInterface $serializer,
+        private MailerInterface $mailer,
+        private UrlGeneratorInterface $urlGenerator,
+        private string $frontendBaseUrl = 'http://localhost:5173' // inject via env if needed
     ) {
     }
 
@@ -35,40 +44,100 @@ class AuthController extends AbstractController
     #[Route('/register', name: 'register', methods: ['POST'])]
     public function register(Request $request): JsonResponse
     {
-        $data = \json_decode($request->getContent(), true);
-        if (!isset($data['email'], $data['password'])) {
-            return $this->json(['error' => 'Missing credentials'], Response::HTTP_BAD_REQUEST);
+        $data = json_decode($request->getContent(), true);
+        $email = $data['email'] ?? null;
+        $rawPassword = $data['password'] ?? null;
+        $fullName = $data['fullname'] ?? null;
+
+        // basic input checks
+        $violations = $this->validator->validate($email, [
+            new Assert\NotBlank(),
+            new Assert\Email(),
+        ]);
+        if (count($violations) > 0) {
+            return $this->json(['error' => 'Invalid email'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $pwViolations = $this->validator->validate($rawPassword, [
+            new Assert\NotBlank(),
+            new Assert\Length(['min' => 8, 'minMessage' => 'Le mot de passe doit faire au moins {{ limit }} caractères.']),
+        ]);
+        if (count($pwViolations) > 0) {
+            return $this->json(['error' => 'Password too short'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         // check existing user
         $repo = $this->em->getRepository(User::class);
-        if ($repo->findOneBy(['email' => $data['email']])) {
+        if ($repo->findOneBy(['email' => $email])) {
             return $this->json(['error' => 'Email already used'], Response::HTTP_CONFLICT);
         }
 
         $user = new User();
-        $user->setEmail($data['email']);
+        $user->setEmail($email);
+        if ($fullName) {
+            // optionally parse fullname into first/last
+            $user->setFirstName($fullName);
+        }
         $user->setRoles(['ROLE_USER']);
 
-        $hashed = $this->passwordHasher->hashPassword($user, $data['password']);
+        $hashed = $this->passwordHasher->hashPassword($user, $rawPassword);
         $user->setPassword($hashed);
 
-        // validate entity
+        // entity validation (email constraints etc.)
         $errors = $this->validator->validate($user);
-        if (\count($errors) > 0) {
+        if (count($errors) > 0) {
             $payload = $this->serializer->serialize($errors, 'json');
-
             return new JsonResponse($payload, Response::HTTP_UNPROCESSABLE_ENTITY, [], true);
         }
+
+        // generate confirmation token
+        $token = bin2hex(random_bytes(32));
+        $user->setConfirmationToken($token);
+        $user->setIsConfirmed(false);
 
         $this->em->persist($user);
         $this->em->flush();
 
-        // return minimal user payload
+        // send confirmation email
+        $confirmUrl = rtrim($this->frontendBaseUrl, '/') . '/confirm?token=' . $token;
+        $emailMessage = (new TemplatedEmail())
+            ->from('no-reply@charactervitae.local')
+            ->to($user->getEmail())
+            ->subject('Confirmez votre adresse e-mail')
+            ->htmlTemplate('emails/confirmation.html.twig')
+            ->context([
+                'confirmUrl' => $confirmUrl,
+                'user' => $user,
+            ]);
+
+        $this->mailer->send($emailMessage);
+
         return $this->json(
-            ['id' => $user->getId(), 'email' => $user->getEmail()],
+            ['id' => $user->getId(), 'email' => $user->getEmail(), 'message' => 'Vérifiez votre boîte mail pour confirmer votre compte.'],
             Response::HTTP_CREATED
         );
+    }
+
+    #[Route('/confirm', name: 'confirm_user', methods: ['GET'])]
+    public function confirm(Request $request): JsonResponse
+    {
+        $token = $request->query->get('token');
+        if (!$token) {
+            return $this->json(['error' => 'Token manquant'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $repo = $this->em->getRepository(User::class);
+        $user = $repo->findOneBy(['confirmationToken' => $token]);
+        if (!$user) {
+            return $this->json(['error' => 'Token invalide'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $user->setIsConfirmed(true);
+        $user->setConfirmationToken(null);
+        $this->em->flush();
+
+        // Option: redirect to frontend confirmation page
+        return $this->json(['message' => 'Compte confirmé. Vous pouvez maintenant vous connecter.']);
     }
 
     /**
