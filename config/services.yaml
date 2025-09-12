@@ -38,6 +38,5 @@ services:
             - { name: kernel.event_listener, event: kernel.response, method: onKernelResponse }
 
     App\OpenApi\JwtDecorator:
-        decorates: 'api_platform.openapi.factory'
-        arguments: ['@App\OpenApi\JwtDecorator.inner']
-        public: false
+        arguments:
+            $decorated: '@ApiPlatform\OpenApi\Factory\OpenApiFactoryInterface'

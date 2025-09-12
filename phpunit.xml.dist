@@ -10,7 +10,7 @@
 >
     <php>
         <ini name="display_errors" value="1" />
-        <ini name="error_reporting" value="-1" />
+        <ini name="error_reporting" value="-1 &amp; ~E_DEPRECATED &amp; ~E_USER_DEPRECATED"/>
         <env name="APP_ENV" value="test" force="true"/>
         <env name="SHELL_INTERACTIVE" value="0"/>
         <server name="APP_ENV" value="test" force="true" />
