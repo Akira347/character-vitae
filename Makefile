@@ -77,3 +77,7 @@ ci:
 front-dev:
 	@echo "▶️  Lancer le serveur de développement front (Vite) via container node"
 	@$(call in_root,docker run --rm -it -p 5173:5173 -v "$(ROOT_DIR)/front":/work -v node_modules_cache:/work/node_modules -w /work node:20 bash -lc "npm ci --no-audit --no-fund && npm run dev -- --host 0.0.0.0")
+
+front-dev-local:
+	@echo "▶️  Lancer Vite localement (WSL) — npm dans WSL (recommandé)"
+	@$(call in_root,cd front && npm ci && npm run dev -- --host 0.0.0.0)

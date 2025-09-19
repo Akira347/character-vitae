@@ -5,6 +5,8 @@ services:
       dockerfile: docker/php/Dockerfile
     environment:
       APP_ENV: dev
+      MAILER_DSN: smtp://mailer:1025
+      MESSENGER_TRANSPORT_DSN: sync://
       DATABASE_URL: "pgsql://cv_user:cv_pass@db:5432/character_vitae"
     depends_on:
       - db
