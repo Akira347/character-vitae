@@ -47,9 +47,12 @@ export default function Header() {
       fetch('/api/me', {
         headers: { Authorization: `Bearer ${token}` },
       })
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(json => setUser(json))
-        .catch(() => { localStorage.removeItem(tokenKey); setUser(null); });
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((json) => setUser(json))
+        .catch(() => {
+          localStorage.removeItem(tokenKey);
+          setUser(null);
+        });
     }
   }, []);
 
@@ -71,12 +74,18 @@ export default function Header() {
 
       const text = await resp.text();
       let json = null;
-      try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = null;
+      }
 
       if (resp.ok && json && json.token) {
         // store token, fetch /api/me and set user
         localStorage.setItem(tokenKey, json.token);
-        const meResp = await fetch('/api/me', { headers: { Authorization: `Bearer ${json.token}` } });
+        const meResp = await fetch('/api/me', {
+          headers: { Authorization: `Bearer ${json.token}` },
+        });
         if (meResp.ok) {
           const meJson = await meResp.json();
           setUser(meJson);
@@ -89,7 +98,7 @@ export default function Header() {
       }
     } catch (err) {
       console.error('login error', err);
-      setLoginError("Impossible de joindre le serveur.");
+      setLoginError('Impossible de joindre le serveur.');
     } finally {
       setLoginLoading(false);
     }
@@ -110,11 +119,21 @@ export default function Header() {
           <Nav className="ms-auto">
             {!user ? (
               <Nav.Link onClick={openLogin} aria-label="Open login">
-                <img src={PlumeIcon} alt="Connexion" style={{ width: 56, height: 56, objectFit: 'contain' }} />
+                <img
+                  src={PlumeIcon}
+                  alt="Connexion"
+                  style={{ width: 56, height: 56, objectFit: 'contain' }}
+                />
               </Nav.Link>
             ) : (
               <NavDropdown title={user.fullName || user.email} id="user-dropdown" align="end">
-                <NavDropdown.Item onClick={() => { /* go to profile */ }}>Mon profil</NavDropdown.Item>
+                <NavDropdown.Item
+                  onClick={() => {
+                    /* go to profile */
+                  }}
+                >
+                  Mon profil
+                </NavDropdown.Item>
                 <NavDropdown.Divider />
                 <NavDropdown.Item onClick={() => handleLogout()}>Se déconnecter</NavDropdown.Item>
               </NavDropdown>
@@ -132,7 +151,12 @@ export default function Header() {
             <>
               {signupSuccessMessage && <Alert variant="success">{signupSuccessMessage}</Alert>}
               {loginError && <Alert variant="danger">{loginError}</Alert>}
-              <Form onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+              <Form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleLogin();
+                }}
+              >
                 <Form.Group className="mb-3" controlId="loginEmail">
                   <Form.Label>Adresse e-mail</Form.Label>
                   <Form.Control
@@ -157,14 +181,32 @@ export default function Header() {
 
                 <div className="d-flex justify-content-between align-items-center">
                   <div>
-                    <Button variant="link" onClick={() => setView('signup')} disabled={loginLoading}>
+                    <Button
+                      variant="link"
+                      onClick={() => setView('signup')}
+                      disabled={loginLoading}
+                    >
                       Pas de compte ? Inscrivez-vous
                     </Button>
                   </div>
                   <div>
-                    <Button variant="secondary" onClick={() => setShow(false)} className="me-2" disabled={loginLoading}>Annuler</Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShow(false)}
+                      className="me-2"
+                      disabled={loginLoading}
+                    >
+                      Annuler
+                    </Button>
                     <Button variant="primary" type="submit" disabled={loginLoading}>
-                      {loginLoading ? <><Spinner animation="border" size="sm" />&nbsp;Connexion...</> : 'Connexion'}
+                      {loginLoading ? (
+                        <>
+                          <Spinner animation="border" size="sm" />
+                          &nbsp;Connexion...
+                        </>
+                      ) : (
+                        'Connexion'
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -176,7 +218,9 @@ export default function Header() {
               onSwitchToLogin={() => setView('login')}
               onSuccess={() => {
                 setView('login');
-                setSignupSuccessMessage('Inscription réussie — vérifiez votre boîte mail pour confirmer votre compte.');
+                setSignupSuccessMessage(
+                  'Inscription réussie — vérifiez votre boîte mail pour confirmer votre compte.',
+                );
                 setTimeout(() => setSignupSuccessMessage(null), 2000);
               }}
             />

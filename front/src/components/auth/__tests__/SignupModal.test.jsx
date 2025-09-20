@@ -26,4 +26,3 @@ test('renders signup modal and validates inputs', () => {
   fireEvent.change(confirmInput, { target: { value: 'longpassword' } });
   // submit will call fetch; you can mock fetch with jest.spyOn(global, 'fetch').mockResolvedValue(...)
 });
-

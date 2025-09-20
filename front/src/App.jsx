@@ -4,7 +4,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/structure/Layout';
 import Dashboard from './pages/Dashboard';
 import NotFoundPage from './pages/NotFoundPage';
-import Confirm from "./pages/Confirm";
+import Confirm from './pages/Confirm';
 
 /**
  * Point d’entrée de l’application.

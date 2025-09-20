@@ -15,8 +15,6 @@ use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\Serializer\SerializerInterface;
-use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 #[Route('/api', name: 'api_')]
 class AuthController extends AbstractController
@@ -24,8 +22,6 @@ class AuthController extends AbstractController
     public function __construct(
         private EntityManagerInterface $em,
         private UserPasswordHasherInterface $passwordHasher,
-        private ValidatorInterface $validator,
-        private SerializerInterface $serializer,
         private MailerInterface $mailer,
         private LoggerInterface $logger,
         private string $frontendUrl, // injecté via services.yaml
@@ -42,32 +38,39 @@ class AuthController extends AbstractController
     public function register(Request $request): JsonResponse
     {
         try {
+            /** @var array<string,mixed> $data */
             $data = $request->toArray();
         } catch (\Throwable $e) {
             $this->logger->warning('Register: invalid JSON', ['exception' => $e->getMessage()]);
+
             return $this->json(['error' => 'Invalid JSON body'], Response::HTTP_BAD_REQUEST);
         }
-    
-        // tolerant extraction
-        $email = $data['email'] ?? null;
-        $plainPassword = $data['password'] ?? null;
-        $firstName = $data['firstName'] ?? $data['first_name'] ?? null;
-        $lastName  = $data['lastName']  ?? $data['last_name']  ?? null;
-    
+
+        // extrait de façon sûre et convertit seulement si la valeur est scalare
+        $rawEmail = $data['email'] ?? null;
+        $rawPassword = $data['password'] ?? null;
+        $rawFirst = $data['firstName'] ?? ($data['first_name'] ?? null);
+        $rawLast = $data['lastName'] ?? ($data['last_name'] ?? null);
+
+        $email = \is_scalar($rawEmail) ? \trim((string) $rawEmail) : null;
+        $plainPassword = \is_scalar($rawPassword) ? (string) $rawPassword : null;
+        $firstName = \is_scalar($rawFirst) ? \trim((string) $rawFirst) : null;
+        $lastName = \is_scalar($rawLast) ? \trim((string) $rawLast) : null;
+
         $this->logger->info('Register payload received', [
             'payload' => $data,
-            'parsed'  => ['email' => $email, 'firstName' => $firstName, 'lastName' => $lastName],
+            'parsed' => ['email' => $email, 'firstName' => $firstName, 'lastName' => $lastName],
         ]);
-    
+
         if (!$email || !$plainPassword) {
             return $this->json(['error' => 'Missing credentials'], Response::HTTP_BAD_REQUEST);
         }
-    
+
         $repo = $this->em->getRepository(User::class);
         if ($repo->findOneBy(['email' => $email])) {
             return $this->json(['error' => 'Email already used'], Response::HTTP_CONFLICT);
         }
-    
+
         $user = (new User())
             ->setEmail($email)
             ->setFirstName($firstName)
@@ -75,34 +78,34 @@ class AuthController extends AbstractController
             ->setRoles(['ROLE_USER'])
             ->setIsConfirmed(false)
         ;
-        $user->setPassword($this->passwordHasher->hashPassword($user, $plainPassword));
-    
+        $user->setPassword($this->passwordHasher->hashPassword($user, (string) $plainPassword));
+
         $token = \bin2hex(\random_bytes(16));
         $user->setConfirmationToken($token);
-        $this->logger->info('Register token generated', ['email'=>$email, 'token'=>$token]);
-    
+        $this->logger->info('Register token generated', ['email' => $email, 'token' => $token]);
+
         $this->em->persist($user);
         $this->em->flush();
-    
+
         try {
             $confirmUrl = \rtrim($this->frontendUrl, '/').'/confirm?token='.\urlencode($token);
             $emailMessage = (new Email())
                 ->from('noreply@example.com')
-                ->to($email)
+                ->to((string) $email)
                 ->subject('Confirmez votre compte')
                 ->text("Merci de confirmer votre compte : $confirmUrl");
-    
+
             $this->mailer->send($emailMessage);
         } catch (\Throwable $e) {
             $this->logger->error('Failed to send confirmation email', ['exception' => $e->getMessage()]);
         }
-    
+
         return $this->json([
-            'id'        => $user->getId(),
-            'email'     => $user->getEmail(),
+            'id' => $user->getId(),
+            'email' => $user->getEmail(),
             'firstName' => $user->getFirstName(),
-            'lastName'  => $user->getLastName(),
-            'fullName'  => $user->getFullName(),
+            'lastName' => $user->getLastName(),
+            'fullName' => $user->getFullName(),
         ], Response::HTTP_CREATED);
     }
 
@@ -124,33 +127,37 @@ class AuthController extends AbstractController
     {
         $token = $request->query->get('token');
         $this->logger->info('Confirm called', ['token' => $token]);
-    
+
         if (!$token) {
             $this->logger->warning('Confirm: missing token');
+
             return $this->json(['error' => 'Token manquant'], Response::HTTP_BAD_REQUEST);
         }
-    
+
         $repo = $this->em->getRepository(User::class);
         /** @var User|null $user */
         $user = $repo->findOneBy(['confirmationToken' => $token]);
-    
+
         if (!$user) {
             $this->logger->info('Confirm: token not found', ['token' => $token]);
+
             return $this->json(['error' => 'Token invalide, veuillez vérifier votre boîte mail'], Response::HTTP_BAD_REQUEST);
         }
-    
+
         if ($user->isConfirmed()) {
             $this->logger->info('Confirm: token already used', ['userId' => $user->getId()]);
+
             return $this->json(['message' => 'Compte déjà confirmé'], Response::HTTP_OK);
         }
-    
+
         $user->setIsConfirmed(true);
         $user->setConfirmationToken(null);
         $this->em->flush();
-    
+
         $this->logger->info('Confirm: success', ['userId' => $user->getId()]);
+
         return $this->json(['message' => 'Compte confirmé. Vous pouvez maintenant vous connecter.'], Response::HTTP_OK);
-    }    
+    }
 
     /**
      * Return current user (requires JWT).
