@@ -15,6 +15,7 @@ use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 #[Route('/api', name: 'api_')]
 class AuthController extends AbstractController
@@ -24,6 +25,7 @@ class AuthController extends AbstractController
         private UserPasswordHasherInterface $passwordHasher,
         private MailerInterface $mailer,
         private LoggerInterface $logger,
+        private ValidatorInterface $validator,
         private string $frontendUrl, // injecté via services.yaml
     ) {
     }
@@ -83,6 +85,23 @@ class AuthController extends AbstractController
         $token = \bin2hex(\random_bytes(16));
         $user->setConfirmationToken($token);
         $this->logger->info('Register token generated', ['email' => $email, 'token' => $token]);
+
+        // Gestion des erreurs et affichage JSON clair
+        $violations = $this->validator->validate($user);
+        if (\count($violations) > 0) {
+            $errors = [];
+            foreach ($violations as $v) {
+                $errors[] = [
+                    'propertyPath' => $v->getPropertyPath(),
+                    'message' => $v->getMessage(),
+                ];
+            }
+
+            return $this->json([
+                'message' => 'Validation failed',
+                'violations' => $errors,
+            ], 422);
+        }
 
         $this->em->persist($user);
         $this->em->flush();

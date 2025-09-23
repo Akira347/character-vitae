@@ -17,11 +17,25 @@ export default function SignupForm({ onSuccess, onCancel, onSwitchToLogin }) {
   const [successMsg, setSuccessMsg] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // field-level errors object
+  const [fieldErrors, setFieldErrors] = useState({
+    firstName: null,
+    lastName: null,
+    email: null,
+    password: null,
+  });
+
   useEffect(() => {
     if (passwordConfirm.length > 0 && passwordConfirm.length >= password.length) {
       setPasswordMismatch(password !== passwordConfirm);
+      if (password !== passwordConfirm) {
+        setFieldErrors((s) => ({ ...s, password: 'Les mots de passe ne correspondent pas.' }));
+      } else {
+        setFieldErrors((s) => ({ ...s, password: null }));
+      }
     } else {
       setPasswordMismatch(false);
+      setFieldErrors((s) => ({ ...s, password: null }));
     }
   }, [password, passwordConfirm]);
 
@@ -44,7 +58,6 @@ export default function SignupForm({ onSuccess, onCancel, onSwitchToLogin }) {
     }
   };
 
-  // Optional: POST /api/check-email { email } -> { exists: true|false }
   const checkEmailUnique = async () => {
     if (!email || !EMAIL_REGEX.test(email)) return;
     setEmailChecking(true);
@@ -57,7 +70,12 @@ export default function SignupForm({ onSuccess, onCancel, onSwitchToLogin }) {
       });
       if (resp.status === 200) {
         const json = await resp.json();
-        if (json.exists) setEmailError('Cet e-mail est déjà utilisé.');
+        if (json.exists) {
+          setEmailError('Cet e-mail est déjà utilisé.');
+          setFieldErrors((s) => ({ ...s, email: 'Cet e-mail est déjà utilisé.' }));
+        } else {
+          setFieldErrors((s) => ({ ...s, email: null }));
+        }
       }
     } catch (err) {
       console.debug('checkEmailUnique error', err);
@@ -70,6 +88,7 @@ export default function SignupForm({ onSuccess, onCancel, onSwitchToLogin }) {
     ev.preventDefault();
     setErrors([]);
     setSuccessMsg(null);
+    setFieldErrors({ firstName: null, lastName: null, email: null, password: null });
 
     const v = validateLocal();
     if (v.length) {
@@ -97,23 +116,46 @@ export default function SignupForm({ onSuccess, onCancel, onSwitchToLogin }) {
         const msg = 'Inscription réussie — vérifiez votre boîte mail pour confirmer votre compte.';
         setSuccessMsg(msg);
         setErrors([]);
-        // Retour au login après courte pause
+        setFieldErrors({ firstName: null, lastName: null, email: null, password: null });
         setTimeout(() => {
           setSuccessMsg(null);
           if (typeof onSuccess === 'function') onSuccess();
         }, 1400);
-      } else if (resp.status === 422 || resp.status === 400) {
+      } else if (resp.status === 422) {
+        // validation errors from API
+        const violations = json?.violations || [];
+        const newFieldErrors = { firstName: null, lastName: null, email: null, password: null };
+        violations.forEach((v) => {
+          if (v.propertyPath) {
+            // map backend property names -> our form fields if needed
+            const key =
+              v.propertyPath === 'firstName' || v.propertyPath === 'first_name'
+                ? 'firstName'
+                : v.propertyPath === 'lastName' || v.propertyPath === 'last_name'
+                  ? 'lastName'
+                  : v.propertyPath === 'email'
+                    ? 'email'
+                    : v.propertyPath === 'password'
+                      ? 'password'
+                      : null;
+            if (key) newFieldErrors[key] = v.message;
+          }
+        });
+        setFieldErrors(newFieldErrors);
+        const global = json?.message || 'Erreurs de validation';
+        setErrors([global]);
+      } else if (resp.status === 400) {
         let msg = "Erreur lors de l'inscription.";
         if (json) {
           if (json.message) msg = json.message;
           else if (json.error) msg = json.error;
-          else if (json.violations) msg = json.violations.map((v) => v.message).join(' — ');
         } else if (text) {
           msg = text;
         }
         setErrors([msg]);
       } else if (resp.status === 409) {
         setErrors(['Cet e-mail est déjà utilisé.']);
+        setFieldErrors((s) => ({ ...s, email: 'Cet e-mail est déjà utilisé.' }));
       } else {
         setErrors([`Erreur serveur (${resp.status}). Réessayez plus tard.`]);
       }
@@ -152,7 +194,9 @@ export default function SignupForm({ onSuccess, onCancel, onSwitchToLogin }) {
             onChange={(e) => setFirstName(e.target.value)}
             disabled={loading}
             required
+            isInvalid={!!fieldErrors.firstName}
           />
+          <Form.Control.Feedback type="invalid">{fieldErrors.firstName}</Form.Control.Feedback>
         </Form.Group>
 
         <Form.Group className="mb-3" controlId="signupLastName">
@@ -164,7 +208,9 @@ export default function SignupForm({ onSuccess, onCancel, onSwitchToLogin }) {
             onChange={(e) => setLastName(e.target.value)}
             disabled={loading}
             required
+            isInvalid={!!fieldErrors.lastName}
           />
+          <Form.Control.Feedback type="invalid">{fieldErrors.lastName}</Form.Control.Feedback>
         </Form.Group>
 
         <Form.Group className="mb-3" controlId="signupEmail">
@@ -176,11 +222,12 @@ export default function SignupForm({ onSuccess, onCancel, onSwitchToLogin }) {
             onChange={(e) => {
               setEmail(e.target.value);
               setEmailError(null);
+              setFieldErrors((s) => ({ ...s, email: null }));
             }}
             onBlur={checkEmailUnique}
             required
             disabled={loading}
-            isInvalid={!!emailError}
+            isInvalid={!!fieldErrors.email}
           />
           <Form.Text className="text-muted">
             Nous utiliserons cet e-mail pour la confirmation.
@@ -190,7 +237,9 @@ export default function SignupForm({ onSuccess, onCancel, onSwitchToLogin }) {
               <small>Vérification de l'e-mail…</small>
             </div>
           )}
-          {emailError && <Form.Control.Feedback type="invalid">{emailError}</Form.Control.Feedback>}
+          <Form.Control.Feedback type="invalid">
+            {fieldErrors.email || emailError}
+          </Form.Control.Feedback>
         </Form.Group>
 
         <Form.Group className="mb-3" controlId="signupPassword">
@@ -201,8 +250,13 @@ export default function SignupForm({ onSuccess, onCancel, onSwitchToLogin }) {
             onChange={(e) => setPassword(e.target.value)}
             required
             disabled={loading}
+            isInvalid={!!fieldErrors.password || passwordMismatch}
           />
           <Form.Text className="text-muted">Minimum 8 caractères</Form.Text>
+          <Form.Control.Feedback type="invalid">
+            {fieldErrors.password ||
+              (passwordMismatch ? 'Les mots de passe ne correspondent pas.' : null)}
+          </Form.Control.Feedback>
         </Form.Group>
 
         <Form.Group className="mb-3" controlId="signupPasswordConfirm">

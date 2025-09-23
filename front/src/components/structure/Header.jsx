@@ -1,14 +1,26 @@
 // src/components/structure/Header.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Navbar, Container, Nav, Modal, Button, Form, Alert, NavDropdown } from 'react-bootstrap';
+import {
+  Navbar,
+  Container,
+  Nav,
+  Modal,
+  Button,
+  Form,
+  Alert,
+  NavDropdown,
+  Spinner,
+} from 'react-bootstrap';
 import PlumeIcon from '../../assets/icons/plume.png';
 import { Link } from 'react-router-dom';
 import SignupForm from '../auth/SignupForm';
+import { AuthContext } from '../../contexts/AuthContext';
 
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, login, logout } = useContext(AuthContext);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -36,25 +48,9 @@ export default function Header() {
 
   const [signupSuccessMessage, setSignupSuccessMessage] = useState(null);
 
-  // auth
-  const [user, setUser] = useState(null); // { id, email, fullName, ... }
   const tokenKey = 'cv_token';
 
-  // try restoring user from token on mount
-  useEffect(() => {
-    const token = localStorage.getItem(tokenKey);
-    if (token) {
-      fetch('/api/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => (r.ok ? r.json() : Promise.reject()))
-        .then((json) => setUser(json))
-        .catch(() => {
-          localStorage.removeItem(tokenKey);
-          setUser(null);
-        });
-    }
-  }, []);
+  // try restoring user from token on mount is handled by AuthProvider
 
   const openLogin = () => {
     setView('login');
@@ -66,34 +62,27 @@ export default function Header() {
     setLoginError(null);
     setLoginLoading(true);
     try {
-      const resp = await fetch('/api/login_check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: loginEmail, password: loginPassword }),
-      });
-
-      const text = await resp.text();
-      let json = null;
-      try {
-        json = text ? JSON.parse(text) : null;
-      } catch {
-        json = null;
-      }
-
-      if (resp.ok && json && json.token) {
-        // store token, fetch /api/me and set user
-        localStorage.setItem(tokenKey, json.token);
-        const meResp = await fetch('/api/me', {
-          headers: { Authorization: `Bearer ${json.token}` },
-        });
-        if (meResp.ok) {
-          const meJson = await meResp.json();
-          setUser(meJson);
-        }
+      const result = await login({ username: loginEmail, password: loginPassword });
+      if (result.ok) {
+        // succès : on ferme et on redirige vers la home (ou dashboard)
         setShow(false);
+        navigate('/');
       } else {
-        let msg = 'E-mail ou mot de passe incorrect';
-        if (json && (json.message || json.error)) msg = json.message || json.error;
+        // résultat d'erreur : essayer d'extraire message utile
+        let msg = 'E-mail ou mot de passe incorrect'; // message par défaut
+        if (result.body) {
+          let backendMsg = null;
+          if (result.body.message) backendMsg = result.body.message;
+          else if (result.body.error) backendMsg = result.body.error;
+          else if (typeof result.body === 'string' && result.body.length) backendMsg = result.body;
+
+          // traduction spécifique
+          if (backendMsg === 'Invalid credentials.') {
+            msg = 'E-mail ou mot de passe incorrect';
+          } else if (backendMsg) {
+            msg = backendMsg; // sinon utiliser le message du backend
+          }
+        }
         setLoginError(msg);
       }
     } catch (err) {
@@ -105,8 +94,8 @@ export default function Header() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem(tokenKey);
-    setUser(null);
+    logout();
+    navigate('/'); // redirection après logout
   };
 
   return (

@@ -7,7 +7,11 @@ import { BrowserRouter } from 'react-router-dom';
 const Wrapped = (ui) => <BrowserRouter>{ui}</BrowserRouter>;
 
 test('switch entre onglets Sections et Avatar & Infos', () => {
-  render(Wrapped(<Dashboard />));
+  render(
+    <BrowserRouter>
+      <Dashboard />
+    </BrowserRouter>,
+  );
 
   // Onglet Sections actif par défaut
   const btnSections = screen.getByText('Sections');

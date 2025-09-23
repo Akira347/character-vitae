@@ -1,28 +1,26 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import SignupModal from './SignupModal';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import SignupForm from '../SignupForm';
 
-test('renders signup modal and validates inputs', () => {
-  render(<SignupModal show={true} onHide={() => {}} />);
-  expect(screen.getByLabelText(/Adresse e-mail/i)).toBeInTheDocument();
+test('renders signup form and validates inputs', async () => {
+  render(<SignupForm onSuccess={() => {}} onCancel={() => {}} onSwitchToLogin={() => {}} />);
 
-  const emailInput = screen.getByLabelText(/Adresse e-mail/i);
-  const passInput = screen.getByLabelText(/Mot de passe/i);
-  const confirmInput = screen.getByLabelText(/Confirmez le mot de passe/i);
-  const submitBtn = screen.getByRole('button', { name: /S'inscrire/i });
+  fireEvent.change(screen.getByPlaceholderText('Prénom'), { target: { value: 'Jean' } });
+  fireEvent.change(screen.getByPlaceholderText('Nom'), { target: { value: 'Dupont' } });
+  fireEvent.change(screen.getByLabelText(/Adresse e-mail/i), { target: { value: 'invalid' } });
+  fireEvent.change(screen.getByLabelText('Mot de passe'), { target: { value: 'short' } });
+  fireEvent.change(screen.getByLabelText('Confirmez le mot de passe'), {
+    target: { value: 'short' },
+  });
 
-  // invalid email
-  fireEvent.change(emailInput, { target: { value: 'invalid' } });
-  fireEvent.change(passInput, { target: { value: 'short' } });
-  fireEvent.change(confirmInput, { target: { value: 'short' } });
-  fireEvent.click(submitBtn);
+  // ⚡ Soumission explicite
+  fireEvent.submit(screen.getByTestId('signup-form'));
 
-  expect(screen.getByText(/Format d'email invalide/i)).toBeInTheDocument();
-  expect(screen.getByText(/mot de passe doit contenir/i)).toBeInTheDocument();
+  // debug si besoin
+  // screen.debug();
 
-  // valid -> simulate filling valid inputs
-  fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-  fireEvent.change(passInput, { target: { value: 'longpassword' } });
-  fireEvent.change(confirmInput, { target: { value: 'longpassword' } });
-  // submit will call fetch; you can mock fetch with jest.spyOn(global, 'fetch').mockResolvedValue(...)
+  // Vérifier que l'alerte d'erreurs apparaît
+  const errorsAlert = await screen.findByTestId('signup-errors');
+  expect(errorsAlert).toHaveTextContent(/Format/i);
+  expect(errorsAlert).toHaveTextContent(/mot de passe/i);
 });
