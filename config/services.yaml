@@ -37,6 +37,20 @@ services:
         tags:
             - { name: kernel.event_listener, event: kernel.response, method: onKernelResponse }
 
+    # JwtDecorator décore le factory d'API Platform
     App\OpenApi\JwtDecorator:
+        decorates: 'api_platform.openapi.factory'
         arguments:
-            $decorated: '@ApiPlatform\OpenApi\Factory\OpenApiFactoryInterface'
+            - '@App\OpenApi\JwtDecorator.inner'
+        autowire: true
+        autoconfigure: false
+        public: false
+
+    # AuthOpenApiFactory décore le JwtDecorator (chaînage)
+    App\OpenApi\AuthOpenApiFactory:
+        decorates: 'App\OpenApi\JwtDecorator'
+        arguments:
+            - '@App\OpenApi\AuthOpenApiFactory.inner'
+        autowire: true
+        autoconfigure: false
+        public: false
