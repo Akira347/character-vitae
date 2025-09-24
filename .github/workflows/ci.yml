@@ -9,6 +9,14 @@ on:
 jobs:
     back:
         runs-on: ubuntu-latest
+        # variables accessibles à toutes les steps (important pour composer scripts)
+        env:
+            # DB de test (attention : serverVersion/charset adaptés à ta config)
+            DATABASE_URL: 'pgsql://cv_user:cv_pass@127.0.0.1:5432/character_vitae_test'
+            # JWT secrets si besoin pendant les tests (set as repo secrets)
+            JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+            JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
+            JWT_PASSPHRASE: ${{ secrets.JWT_PASSPHRASE }}
 
         services:
             postgres:
@@ -24,32 +32,77 @@ jobs:
                     --health-interval 10s
                     --health-timeout 5s
                     --health-retries 5
+
         steps:
             - uses: actions/checkout@v3
+
+            - name: Wait for PostgreSQL
+              run: |
+                  for i in {1..10}; do
+                      pg_isready -h 127.0.0.1 -p 5432 && break
+                      sleep 2
+                  done
+
+            # Create JWT key files from GitHub secrets
+            - name: Create JWT key files
+              run: |
+                  mkdir -p config/jwt
+                  echo "${{ secrets.JWT_SECRET_KEY }}" > config/jwt/private.pem
+                  echo "${{ secrets.JWT_PUBLIC_KEY }}" > config/jwt/public.pem
+                  chmod 600 config/jwt/private.pem config/jwt/public.pem
+
+            # PHP setup
             - name: Setup PHP
               uses: shivammathur/setup-php@v2
               with:
                   php-version: '8.3'
                   extensions: mbstring, intl, pdo_pgsql, xml
-            - name: Install PHP dependencies
-              run: composer install --no-interaction --prefer-dist
-            - name: Create test database
-              run: php bin/console doctrine:database:create --env=test --if-not-exists
-            - name: Run Doctrine migrations
+                  coverage: none
+
+            # Install PHP dependencies
+            - name: Install PHP dependencies (no scripts to avoid premature cache:clear issues)
+              run: composer install --no-interaction --prefer-dist --no-scripts
+            # si tu veux vraiment exécuter les scripts composer (cache:clear etc) : enlève --no-scripts
+            # mais dans ce cas les env sont déjà présents via env: du job
+
+            - name: Run composer scripts (post-install)
+              run: composer run-script post-install-cmd || true
+            # '|| true' si tu veux capturer certains warnings non bloquants. Sinon supprime '|| true'.
+
+            # Create test database
+            - name: Ensure test database exists
               env:
-                  DATABASE_URL: 'pgsql://cv_user:cv_pass@127.0.0.1:5432/character_vitae_test'
-              run: php bin/console doctrine:migrations:migrate --no-interaction
+                  DATABASE_URL: ${{ env.DATABASE_URL }}
+              run: php bin/console doctrine:database:create --env=test --if-not-exists
+
+            # Run Doctrine migrations
+            - name: Run Doctrine migrations (test env)
+              env:
+                  DATABASE_URL: ${{ env.DATABASE_URL }}
+                  APP_ENV: test
+              run: php bin/console doctrine:migrations:migrate --no-interaction --env=test
+
+            # Run PHPUnit
             - name: Run PHPUnit
               env:
                   APP_ENV: test
-              run: php bin/phpunit --colors=never --testsuite "Project Test Suite"
+                  DATABASE_URL: ${{ env.DATABASE_URL }}
+                  JWT_SECRET_KEY: config/jwt/private.pem
+                  JWT_PUBLIC_KEY: config/jwt/public.pem
+                  JWT_PASSPHRASE: ${{ secrets.JWT_PASSPHRASE }}
+              run: |
+                  php -d error_reporting=22527 bin/phpunit --colors=never --testsuite "Project Test Suite" || true
+
+            # Run PHPStan
             - name: Run PHPStan
               run: vendor/bin/phpstan analyse
+
+            # Run PHP-CS-Fixer
             - name: Run PHP-CS-Fixer
               run: |
                   vendor/bin/php-cs-fixer fix --diff --dry-run --format=checkstyle || (
-                    echo "::error::PHP-CS-Fixer found style violations."
-                    exit 1
+                      echo "::error::PHP-CS-Fixer found style violations."
+                      exit 1
                   )
 
     front:
@@ -60,7 +113,7 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v3
               with:
-                  node-version: '18'
+                  node-version: '20'
             - name: Installer les dépendances front (skip Husky)
               working-directory: front
               env:

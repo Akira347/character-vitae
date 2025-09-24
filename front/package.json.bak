@@ -1,0 +1,72 @@
+{
+  "name": "front",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" --max-warnings=0",
+    "format": "prettier --write \"src/**/*.{js,jsx,css,html,json,md}\"",
+    "format-check": "prettier --check \"src/**/*.{js,jsx,css,html,json,md}\"",
+    "test": "jest",
+    "docs:build": "npx documentation build \"src/**/*.{js,jsx}\" -f html -o docs",
+    "docs:md": "npx documentation build \"src/**/*.{js,jsx}\" -f md -o docs/API.md",
+    "docs:serve": "npx serve docs"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "setupFilesAfterEnv": [
+      "<rootDir>/setupTests.js"
+    ],
+    "transform": {
+      "^.+\\.[tj]sx?$": "babel-jest"
+    },
+    "moduleFileExtensions": [
+      "js",
+      "jsx",
+      "json",
+      "node"
+    ],
+    "moduleNameMapper": {
+      "\\.(css|scss)$": "identity-obj-proxy",
+      "\\.(png|jpe?g|webp|svg|gif)$": "<rootDir>/__mocks__/fileMock.js"
+    }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@hookform/resolvers": "^5.2.1",
+    "bootstrap": "^5.3.7",
+    "lucide-react": "^0.525.0",
+    "prop-types": "^15.8.1",
+    "react": "^19.1.0",
+    "react-bootstrap": "^2.10.10",
+    "react-bootstrap-icons": "^1.11.6",
+    "react-dom": "^19.1.0",
+    "react-hook-form": "^7.62.0",
+    "react-router-dom": "^6.30.1",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.28.0",
+    "@babel/preset-react": "^7.27.1",
+    "@testing-library/jest-dom": "^6.6.4",
+    "@testing-library/react": "^16.3.0",
+    "@vitejs/plugin-react": "^4.6.0",
+    "babel-jest": "^30.0.5",
+    "eslint": "^9.35.0",
+    "eslint-plugin-jsdoc": "^50.8.0",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^16.3.0",
+    "husky": "^8.0.0",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
+    "prettier": "^3.6.2",
+    "sass-embedded": "^1.89.2",
+    "vite": "^6.3.5"
+  }
+}

@@ -7,3 +7,4 @@ parameters:
       - '#Property App\\Entity\\Character::\$id \(int\|null\)#'
       - '#Property App\\Entity\\User::\$id \(int\|null\)#'
     reportUnmatchedIgnoredErrors: false
+    treatPhpDocTypesAsCertain: false
