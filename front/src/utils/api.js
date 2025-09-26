@@ -13,7 +13,10 @@
 
 export async function fetchJson(origUrl, opts = {}) {
   const tryFetch = async (url, options) => {
-    const headers = { Accept: 'application/json, application/ld+json;q=0.9', ...(options.headers || {}) };
+    const headers = {
+      Accept: 'application/json, application/ld+json;q=0.9',
+      ...(options.headers || {}),
+    };
     const resp = await fetch(url, { ...options, headers });
     const text = await resp.text();
     let body = null;

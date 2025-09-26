@@ -1,5 +1,5 @@
 // src/components/structure/Header.jsx
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useCallback } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   Navbar,
@@ -11,7 +11,6 @@ import {
   Alert,
   NavDropdown,
   Spinner,
-  Dropdown,
 } from 'react-bootstrap';
 import PlumeIcon from '../../assets/icons/plume.png';
 import SignupForm from '../auth/SignupForm';
@@ -22,7 +21,7 @@ import { fetchJson } from '../../utils/api';
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, login, logout, token } = useContext(AuthContext);
+  const { user, login, logout, token } = useContext(AuthContext) || {};
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -46,48 +45,90 @@ export default function Header() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);
-
   const [signupSuccessMessage, setSignupSuccessMessage] = useState(null);
 
   const [showNewCharacter, setShowNewCharacter] = useState(false);
 
-  // characters list + selected
   const [characters, setCharacters] = useState([]);
   const [selectedCharId, setSelectedCharId] = useState(null);
   const [loadingChars, setLoadingChars] = useState(false);
   const [charsError, setCharsError] = useState(null);
 
-  useEffect(() => {
+  // Robust id extractor: prefer numeric id field, else parse '@id'
+  const extractId = (item) => {
+    if (!item) return null;
+    if (typeof item.id === 'number' || typeof item.id === 'string') {
+      return item.id;
+    }
+    const atId = item['@id'] ?? item['@id'];
+    if (typeof atId === 'string') {
+      const parts = atId.split('/');
+      const last = parts[parts.length - 1];
+      if (last) {
+        // if last is numeric-ish, return as number
+        const n = Number(last);
+        return Number.isNaN(n) ? last : n;
+      }
+    }
+    return null;
+  };
+
+  const loadCharacters = useCallback(async () => {
     if (!user) {
       setCharacters([]);
       setSelectedCharId(null);
       return;
     }
-    // fetch characters for current user
-    (async () => {
-      setLoadingChars(true);
-      setCharsError(null);
-      try {
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const data = await fetchJson('/api/characters', { method: 'GET', headers });
-        // ApiPlatform collection might be nested; try to normalise:
-        // If array returned directly, use it; if { 'hydra:member': [...] } handle it.
-        let list = [];
-        if (Array.isArray(data)) list = data;
-        else if (data && Array.isArray(data['hydra:member'])) list = data['hydra:member'];
-        else if (data && data['hydra:member'] === undefined && data['members']) list = data['members']; // fallback
-        setCharacters(list);
-        if (list.length > 0 && !selectedCharId) {
-          setSelectedCharId(list[0].id);
-        }
-      } catch (err) {
-        setCharsError(err.message || 'Impossible de charger les fiches.');
-        setCharacters([]);
-      } finally {
-        setLoadingChars(false);
+    setLoadingChars(true);
+    setCharsError(null);
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const data = await fetchJson('/apip/characters', { method: 'GET', headers });
+
+      let list = [];
+      // ApiPlatform sometimes returns `member` (your sample), Hydra uses `hydra:member`
+      if (Array.isArray(data)) {
+        list = data;
+      } else if (data && Array.isArray(data.member)) {
+        list = data.member;
+      } else if (data && Array.isArray(data['hydra:member'])) {
+        list = data['hydra:member'];
+      } else if (data && Array.isArray(data['members'])) {
+        list = data['members'];
+      } else if (data && typeof data === 'object') {
+        // fallback: collect object values
+        list = Object.values(data);
       }
-    })();
-  }, [user, token]);
+
+      // Normalize items: ensure id/title exist
+      const normalized = list
+        .map((c) => {
+          const id = extractId(c);
+          const title =
+            typeof c?.title === 'string' && c.title.length ? c.title : id ? `#${id}` : undefined;
+          return {
+            raw: c,
+            id,
+            title,
+          };
+        })
+        .filter((x) => x.id !== null && x.id !== undefined);
+
+      setCharacters(normalized);
+      if (normalized.length > 0 && !selectedCharId) {
+        setSelectedCharId(normalized[0].id);
+      }
+    } catch (err) {
+      setCharsError(err?.message || 'Impossible de charger les fiches.');
+      setCharacters([]);
+    } finally {
+      setLoadingChars(false);
+    }
+  }, [user, token, selectedCharId]);
+
+  useEffect(() => {
+    loadCharacters();
+  }, [loadCharacters]);
 
   const openLogin = () => {
     setView('login');
@@ -103,18 +144,15 @@ export default function Header() {
       if (result.ok) {
         setShow(false);
         navigate('/');
+        setTimeout(() => loadCharacters(), 200);
       } else {
         let msg = 'E-mail ou mot de passe incorrect';
         if (result.body) {
-          let backendMsg = null;
-          if (result.body.message) backendMsg = result.body.message;
-          else if (result.body.error) backendMsg = result.body.error;
-          else if (typeof result.body === 'string' && result.body.length) backendMsg = result.body;
-          if (backendMsg === 'Invalid credentials.') {
-            msg = 'E-mail ou mot de passe incorrect';
-          } else if (backendMsg) {
-            msg = backendMsg;
-          }
+          const backendMsg =
+            result.body.message ??
+            result.body.error ??
+            (typeof result.body === 'string' ? result.body : null);
+          if (backendMsg) msg = backendMsg;
         }
         setLoginError(msg);
       }
@@ -131,7 +169,6 @@ export default function Header() {
     navigate('/');
   };
 
-  // When user selects a character -> navigate to its edit page
   const onSelectCharacter = (ev) => {
     const id = ev.target.value;
     setSelectedCharId(id);
@@ -140,9 +177,14 @@ export default function Header() {
     }
   };
 
-  // Save button triggers global event (Dashboard listens and will save)
   const onHeaderSave = () => {
     window.dispatchEvent(new CustomEvent('save-character'));
+  };
+
+  const onNewCharacterHide = () => {
+    setShowNewCharacter(false);
+    // refresh list after creation
+    setTimeout(() => loadCharacters(), 300);
   };
 
   return (
@@ -156,14 +198,17 @@ export default function Header() {
           <Nav className="ms-auto align-items-center">
             {user && (
               <>
-                {/* Sauvegarder (gauche) */}
                 <div className="me-2 d-flex align-items-center">
-                  <Button size="sm" variant="outline-light" onClick={onHeaderSave} aria-label="Sauvegarder">
+                  <Button
+                    size="sm"
+                    variant="outline-light"
+                    onClick={onHeaderSave}
+                    aria-label="Sauvegarder"
+                  >
                     Sauvegarder
                   </Button>
                 </div>
 
-                {/* Sélecteur de personnages */}
                 <div className="me-2">
                   {loadingChars ? (
                     <Spinner animation="border" size="sm" />
@@ -174,9 +219,9 @@ export default function Header() {
                       onChange={onSelectCharacter}
                       aria-label="Choisir fiche"
                     >
-                      <option value="">Mes fiches</option>
+                      <option value="">{charsError ? 'Erreur chargement' : 'Mes fiches'}</option>
                       {characters.map((c) => (
-                        <option key={c.id} value={c.id}>
+                        <option key={String(c.id)} value={String(c.id)}>
                           {c.title ?? `#${c.id}`}
                         </option>
                       ))}
@@ -184,7 +229,6 @@ export default function Header() {
                   )}
                 </div>
 
-                {/* Nouveau personnage */}
                 <Nav.Item className="me-2">
                   <Button
                     className="btn-parchment"
@@ -207,9 +251,7 @@ export default function Header() {
               </Nav.Link>
             ) : (
               <NavDropdown title={user.fullName || user.email} id="user-dropdown" align="end">
-                <NavDropdown.Item onClick={() => { /* go to profile */ }}>
-                  Mon profil
-                </NavDropdown.Item>
+                <NavDropdown.Item>Mon profil</NavDropdown.Item>
                 <NavDropdown.Divider />
                 <NavDropdown.Item onClick={() => handleLogout()}>Se déconnecter</NavDropdown.Item>
               </NavDropdown>
@@ -218,7 +260,6 @@ export default function Header() {
         </Container>
       </Navbar>
 
-      {/* Login / Signup modal (unchanged) */}
       <Modal show={show} onHide={() => setShow(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>{view === 'login' ? 'Se connecter' : "S'inscrire"}</Modal.Title>
@@ -278,8 +319,8 @@ export default function Header() {
                     <Button variant="primary" type="submit" disabled={loginLoading}>
                       {loginLoading ? (
                         <>
-                          <Spinner animation="border" size="sm" />
-                          &nbsp;Connexion...
+                          {' '}
+                          <Spinner animation="border" size="sm" /> &nbsp;Connexion...
                         </>
                       ) : (
                         'Connexion'
@@ -305,10 +346,7 @@ export default function Header() {
         </Modal.Body>
       </Modal>
 
-      <NewCharacterModal
-        show={showNewCharacter}
-        onHide={() => setShowNewCharacter(false)}
-      />
+      <NewCharacterModal show={showNewCharacter} onHide={onNewCharacterHide} />
     </>
   );
 }

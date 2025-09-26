@@ -1,14 +1,18 @@
 <?php
 
+// src/Entity/Character.php
+declare(strict_types=1);
+
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
 use App\Repository\CharacterRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
-use ApiPlatform\Metadata\ApiResource;
 use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: CharacterRepository::class)]
+#[ORM\Table(name: 'character')]
 #[ApiResource(
     normalizationContext: ['groups' => ['character:read']],
     denormalizationContext: ['groups' => ['character:write']],
@@ -40,16 +44,27 @@ class Character
     // Ne pas exposer l'objet owner complet côté public ; expose seulement l'ID si besoin
     private ?User $owner = null;
 
-    /** 
+    /**
      * Layout/Sections JSON:
      * Exemple : [
      *   { "id":"sec-1","type":"Identité","width":200,"content":{...},"collapsed":false },
      *   ...
      * ]
+     *
+     * @var array<string, mixed>
+     */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    #[Groups(['character:read', 'character:write'])]
+    private array $layout = [];
+
+    /**
+     * Avatar data saved as JSON (nullable).
+     *
+     * @var array<string, mixed>|null
      */
     #[ORM\Column(type: 'json', nullable: true)]
-    #[Groups(['character:read','character:write'])]
-    private array $layout = [];
+    #[Groups(['character:read', 'character:write'])]
+    private ?array $avatar = null;
 
     public function __construct()
     {
@@ -109,11 +124,43 @@ class Character
         return $this;
     }
 
-    public function getLayout(): array {
-        return $this->layout ?? [];
+    /**
+     * Accepts normalized layout array.
+     *
+     * @return array<string, mixed>
+     */
+    public function getLayout(): array
+    {
+        return $this->layout;
     }
 
-    public function setLayout(array $layout): static {
-        $this->layout = $layout; return $this;
+    /**
+     * Accepts normalized layout array.
+     *
+     * @param array<string, mixed> $layout
+     */
+    public function setLayout(array $layout): static
+    {
+        $this->layout = $layout;
+
+        return $this;
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    public function getAvatar(): ?array
+    {
+        return $this->avatar;
+    }
+
+    /**
+     * @param array<string,mixed>|null $avatar
+     */
+    public function setAvatar(?array $avatar): self
+    {
+        $this->avatar = $avatar;
+
+        return $this;
     }
 }

@@ -1,4 +1,5 @@
 <?php
+
 // src/OpenApi/AuthOpenApiFactory.php
 declare(strict_types=1);
 
@@ -124,10 +125,12 @@ final class AuthOpenApiFactory implements OpenApiFactoryInterface
             ]);
 
             // on crée une nouvelle instance de Components avec les securitySchemes modifiés
-            if (method_exists($components, 'withSecuritySchemes')) {
+            /** @phpstan-ignore-next-line */
+            if (\method_exists($components, 'withSecuritySchemes')) {
                 $components = $components->withSecuritySchemes($securitySchemes);
                 // et on remplace l'OpenApi par une nouvelle instance qui contient ces components
-                if (method_exists($openApi, 'withComponents')) {
+                /** @phpstan-ignore-next-line */
+                if (\method_exists($openApi, 'withComponents')) {
                     $openApi = $openApi->withComponents($components);
                 } else {
                     // backup : si withComponents n'existe pas (très rare), on essaie d'écrire directement
@@ -140,7 +143,7 @@ final class AuthOpenApiFactory implements OpenApiFactoryInterface
                 $components->getSecuritySchemes()['bearerAuth'] = $securitySchemes['bearerAuth'];
             }
         }
-        
+
         return $openApi;
     }
 }

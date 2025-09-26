@@ -1,3 +1,4 @@
+// src/pages/Dashboard.jsx
 import '../styles/Dashboard.css';
 
 import React, { useState, useEffect, useContext, useCallback } from 'react';
@@ -25,43 +26,69 @@ import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
 import { useDragDrop, DroppableZone } from '../tools/dragDrop';
 import { fetchJson } from '../utils/api';
 
-/**
- * Tableau de bord principal :
- * - Palette de sections / Avatar & Infos à gauche
- * - Canvas de sections à droite
- * - Gestion drag&drop via DnD-kit
- * 
- * Props:
- * - characterId: string|null
- * - initialCharacter: object|null (peut contenir layout, avatar, sections, etc.)
- *
- * @returns {JSX.Element} Le rendu du composant Dashboard
- */
 export default function Dashboard({ characterId = null, initialCharacter = null }) {
-  const { token } = useContext(AuthContext);
+  const { token } = useContext(AuthContext) || {};
   const TOTAL_SLOTS = 15;
 
   const parseLayoutToSections = useCallback((layout) => {
     if (!layout || !Array.isArray(layout.rows)) {
-      // default empty placeholders
-      return Array.from({ length: TOTAL_SLOTS }).map((_, i) => ({ type: 'empty' }));
+      return Array.from({ length: TOTAL_SLOTS }).map((_, i) => ({
+        id: `empty-${i}`,
+        type: 'empty',
+        content: null,
+        collapsed: true,
+      }));
     }
-    // flatten rows preserving order
+
     const flat = [];
-    for (const row of layout.rows) {
-      for (const cell of row) {
+    const seen = new Set();
+    for (let r = 0; r < layout.rows.length; r++) {
+      const row = layout.rows[r];
+      if (!Array.isArray(row)) continue;
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c] ?? {};
+
+        // raw id fourni par le serveur (ex: "s1")
+        const rawId = typeof cell.id === 'string' ? cell.id : `s-${flat.length + 1}`;
+
+        // frontend internal id must start with "sec-"
+        let id = rawId;
+        if (!id.startsWith('sec-') && id !== 'sec-avatar') {
+          id = `sec-${id}`;
+        }
+
+        // ensure uniqueness in this layout
+        if (seen.has(id)) {
+          id = `${id}-${flat.length}-${Date.now()}`;
+        }
+        seen.add(id);
+
         flat.push({
-          id: cell.id ?? `sec-${Date.now()}-${flat.length}`,
-          type: cell.type ?? 'empty',
-          content: cell.content ?? (cell.type === 'empty' ? null : []),
-          collapsed: !!cell.collapsed,
+          id,
+          type: typeof cell.type === 'string' ? cell.type : 'empty',
+          content: Object.prototype.hasOwnProperty.call(cell, 'content')
+            ? cell.content
+            : cell.type === 'empty'
+              ? null
+              : [],
+          collapsed: !!(cell.isCollapsed ?? cell.collapsed ?? true),
           width: cell.width ?? undefined,
+          // optional: keep original server id if you want to debug later
+          originalId: rawId,
         });
       }
     }
-    // pad / slice to TOTAL_SLOTS
+
     const out = flat.slice(0, TOTAL_SLOTS);
-    while (out.length < TOTAL_SLOTS) out.push({ type: 'empty' });
+    while (out.length < TOTAL_SLOTS) {
+      out.push({
+        id: `empty-${out.length}`,
+        type: 'empty',
+        content: null,
+        collapsed: true,
+      });
+    }
+
     return out;
   }, []);
 
@@ -69,28 +96,25 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
     if (initialCharacter?.layout) {
       return parseLayoutToSections(initialCharacter.layout);
     }
-    // initial empty
-    const real = [];
-    const empties = Array.from({ length: TOTAL_SLOTS - real.length }).map(() => ({ type: 'empty' }));
-    return [...real, ...empties];
+    return Array.from({ length: TOTAL_SLOTS }).map((_, i) => ({
+      id: `empty-${i}`,
+      type: 'empty',
+      content: null,
+      collapsed: true,
+    }));
   });
 
-  // track dirty state
   const [isDirty, setIsDirty] = useState(false);
   useUnsavedWarning(isDirty, 'Modifications non sauvegardées — quitter sans sauvegarder ?');
 
-  // wrap setSections to mark dirty
   const setSections = (updater) => {
     setIsDirty(true);
-    setSectionsRaw(updater);
+    setSectionsRaw((prev) => (typeof updater === 'function' ? updater(prev) : updater));
   };
 
-  // avatar initial
-  const [avatarData, setAvatarData] = useState(() => initialCharacter?.avatar ?? {
-    sexe: 'Homme',
-    affichage: 'avatar',
-    photoUrl: '',
-  });
+  const [avatarData, setAvatarData] = useState(
+    () => initialCharacter?.avatar ?? { sexe: 'Homme', affichage: 'avatar', photoUrl: '' },
+  );
   const [avatarEditing, setAvatarEditing] = useState(false);
 
   useEffect(() => {
@@ -99,18 +123,14 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
     }
   }, [initialCharacter]);
 
-  // if loaded later, override sections
   useEffect(() => {
     if (initialCharacter?.layout) {
       setSectionsRaw(parseLayoutToSections(initialCharacter.layout));
     }
   }, [initialCharacter, parseLayoutToSections]);
 
-  // mark dirty if avatar changes
   useEffect(() => {
-    // if initialCharacter present, compare shallow
     if (!initialCharacter) return;
-    // naive compare: if avatar differs set dirty
     if (JSON.stringify(avatarData) !== JSON.stringify(initialCharacter.avatar)) {
       setIsDirty(true);
     }
@@ -118,16 +138,13 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
 
   const [activeTab, setActiveTab] = useState('sections');
 
-  // Hook DnD
   const { handleDragEnd, activeId, setActiveId } = useDragDrop(sections, setSections);
   const sensor = useSensor(PointerSensor);
 
   const handleAddSection = (type) => {
-    // si déjà posée, on ne ré-ajoute pas
     if (sections.some((s) => s.type === type)) return;
-    // on trouve le premier slot vide
     const idx = sections.findIndex((s) => s.type === 'empty');
-    if (idx === -1) return; // plus de place
+    if (idx === -1) return;
     const newSection = {
       id: `sec-${Date.now()}`,
       type,
@@ -136,7 +153,7 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
     };
     setSections((prev) => {
       const copy = [...prev];
-      copy[idx] = newSection; // on remplace l’empty slot
+      copy[idx] = newSection;
       return copy;
     });
     setEditing({ show: true, sectionId: newSection.id });
@@ -147,12 +164,11 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
       const idx = prev.findIndex((s) => s.id === id);
       if (idx === -1) return prev;
       const copy = [...prev];
-      copy[idx] = { type: 'empty' }; // on remet un placeholder
+      copy[idx] = { id: `empty-${idx}`, type: 'empty', content: null, collapsed: true };
       return copy;
     });
   };
 
-  // Au lieu de handleAddSectionClick, on gère tous les clics “éditer”
   const handleEditClick = (id) => {
     if (id === 'sec-avatar') {
       setAvatarEditing(true);
@@ -165,7 +181,6 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
     setSections((secs) => secs.map((s) => (s.id === id ? { ...s, collapsed: !s.collapsed } : s)));
   };
 
-  // saveCharacter avec token
   const saveCharacter = useCallback(async () => {
     if (!characterId) {
       alert('Aucun character sélectionné à sauvegarder.');
@@ -178,12 +193,16 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
         for (let c = 0; c < 5; c++) {
           const idx = r * 5 + c;
           const s = sections[idx] ?? { type: 'empty' };
+          const backendId = s && s.id && typeof s.id === 'string' && s.id.startsWith('sec-')
+            ? s.id.replace(/^sec-/, '')
+            : (s && s.id) ?? `s${idx + 1}`;
+
           row.push({
-            id: s.id ?? `s${idx + 1}`,
+            id: backendId,
             type: s.type,
             width: s.width ?? undefined,
-            content: s.content ?? (s.type === 'empty' ? null : s.content ?? []),
-            isOpen: s.isOpen ?? !s.collapsed,
+            content: s.content ?? (s.type === 'empty' ? null : []),
+            isCollapsed: s.isCollapsed ?? !s.collapsed,
           });
         }
         rows.push(row);
@@ -197,11 +216,17 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
         avatar: avatarData,
       };
 
-      const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
 
       await fetchJson(`/apip/characters/${characterId}`, {
-        method: 'PUT',
-        headers,
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/merge-patch+json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
 
@@ -209,20 +234,16 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
       alert('Sauvegarde effectuée.');
     } catch (err) {
       console.error('Save error', err);
-      alert('Erreur lors de la sauvegarde : ' + (err.message || 'erreur'));
+      alert('Erreur lors de la sauvegarde : ' + (err?.message || 'erreur'));
     }
   }, [characterId, sections, avatarData, initialCharacter, token]);
 
-  // écoute l'évènement global déclenché par le Header
   useEffect(() => {
-    const onSave = () => {
-      saveCharacter();
-    };
+    const onSave = () => saveCharacter();
     window.addEventListener('save-character', onSave);
     return () => window.removeEventListener('save-character', onSave);
   }, [saveCharacter]);
 
-  // UI state for editing sections
   const [editing, setEditing] = useState({ show: false, sectionId: null });
 
   return (
@@ -233,47 +254,29 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
       onDragEnd={(event) => {
         const { active, over } = event;
 
-        // 1) Si palette→placeholder => on gère nous-mêmes la création + modale
         if (active.id.startsWith('type-') && over?.id?.startsWith('empty-')) {
           const placeIdx = parseInt(over.id.replace('empty-', ''), 10);
           const typeName = active.id.replace(/^type-/, '');
           const newId = `sec-${Date.now()}`;
-          const newSection = {
-            id: newId,
-            type: typeName,
-            content: [],
-            collapsed: false,
-          };
+          const newSection = { id: newId, type: typeName, content: [], collapsed: false };
 
           setSections((prev) => {
             const copy = [...prev];
             copy[placeIdx] = newSection;
             return copy;
           });
-          // **ouvrir** la modale sur ce nouvel id
           setEditing({ show: true, sectionId: newId });
           return;
         }
 
-        // 2) sinon on laisse handleDragEnd faire son boulot (reorder, palette→canvas, suppression…)
         handleDragEnd(event);
       }}
       onDragCancel={() => setActiveId(null)}
     >
       <Row className="gy-4">
-        {/* Palette */}
         <Col xs={12} md={3} lg={2}>
           <DroppableZone id="palette" style={{ padding: 0 }}>
             <div className="section-sidebar">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <h6 style={{ margin: 0 }}>Palette</h6>
-                <div>
-                  <Button size="sm" variant={isDirty ? 'warning' : 'outline-secondary'} onClick={saveCharacter}>
-                    {isDirty ? 'Sauvegarder*' : 'Sauvegarder'}
-                  </Button>
-                </div>
-              </div>
-
               <div className="tab-switcher">
                 <button
                   className={activeTab === 'sections' ? 'active' : ''}
@@ -305,12 +308,14 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
           </DroppableZone>
         </Col>
 
-        {/* Canvas & Avatar */}
         <Col xs={12} md={9} lg={10}>
           <Container fluid className="p-0">
             <Card className="mb-4">
               <Card.Body className="dashboard-sections">
-                <SortableContext items={sections.map((s) => s.id ?? `empty-${Math.random()}`)} strategy={rectSortingStrategy}>
+                <SortableContext
+                  items={sections.map((s, idx) => s.id ?? `empty-${idx}`)}
+                  strategy={rectSortingStrategy}
+                >
                   {sections.map((sec, idx) => (
                     <SectionContainer
                       key={sec.id ?? `empty-${idx}`}
@@ -335,7 +340,6 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
               </Card.Body>
             </Card>
 
-            {/* Formulaire de section*/}
             <SectionForm
               show={editing.show}
               type={sections.find((s) => s.id === editing.sectionId)?.type}
@@ -349,7 +353,6 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
               onCancel={() => setEditing({ show: false, sectionId: null })}
             />
 
-            {/* pour l’avatar */}
             <AvatarEditor
               show={avatarEditing}
               data={avatarData}
@@ -363,7 +366,6 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
         </Col>
       </Row>
 
-      {/* Overlay pendant le drag */}
       <DragOverlay>
         {activeId?.startsWith('type-') && (
           <div className="p-2 bg-warning border">
@@ -379,19 +381,3 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
     </DndContext>
   );
 }
-
-// Futur appel API pour persister côté serveur
-// try {
-//   await fetch(`/api/characters/${characterId}/sections`, {
-//     method: 'POST', // ou PUT si tu mets à jour
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify({
-//       sectionId: editing.sectionId,
-//       type: /* le type */,
-//       content: data
-//     })
-//   });
-// } catch (err) {
-//   console.error('Erreur de sauvegarde', err);
-//   // idéalement, remonter l’erreur à l’utilisateur
-// }

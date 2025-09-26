@@ -36,8 +36,12 @@ fix-back:
 	@echo "🛠️  PHP-CS-Fixer (back)"
 	@$(call in_root,vendor/bin/php-cs-fixer fix --diff --format=checkstyle)
 
-## Front : prettier / lint / format-check / build (via container node)
+## Front : test / prettier / lint / format-check / build (via container node)
 # On monte $(ROOT_DIR)/front pour être sûr d'avoir un chemin absolu correct.
+front-test:
+	@echo "▶️  Front tests (via docker node)"
+	@$(call in_root,docker run --rm -v "$(ROOT_DIR)/front":/work -v node_modules_cache:/work/node_modules -w /work node:20 bash -lc "npm ci --no-audit --no-fund && npm test")
+
 fix-front:
 	@echo "🛠️  Prettier (front via docker node)"
 	@$(call in_root,docker run --rm -v "$(ROOT_DIR)/front":/work -v node_modules_cache:/work/node_modules -w /work node:20 bash -lc "npm install -g npm@11.6.0 && npm ci --no-audit --no-fund && npm run format")
