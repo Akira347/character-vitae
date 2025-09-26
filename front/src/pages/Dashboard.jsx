@@ -1,7 +1,7 @@
 import '../styles/Dashboard.css';
 
-import React, { useState } from 'react';
-import { Row, Col, Card, Container } from 'react-bootstrap';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { Row, Col, Card, Container, Button } from 'react-bootstrap';
 import SectionSelector from '../components/section/SectionSelector';
 import SectionForm from '../components/section/SectionForm';
 import { SECTION_TYPES } from '../constants/sectionTypes';
@@ -9,6 +9,8 @@ import AvatarEditor from '../components/avatar/AvatarEditor';
 import SectionContainer from '../components/section/SectionContainer';
 import SectionPreview from '../components/section/SectionPreview';
 import AvatarInfoPanel from '../components/avatar/AvatarInfoPanel';
+import { AuthContext } from '../contexts/AuthContext';
+import useUnsavedWarning from '../hooks/useUnsavedWarning';
 
 import {
   DndContext,
@@ -21,34 +23,100 @@ import {
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
 
 import { useDragDrop, DroppableZone } from '../tools/dragDrop';
+import { fetchJson } from '../utils/api';
 
 /**
  * Tableau de bord principal :
  * - Palette de sections / Avatar & Infos à gauche
  * - Canvas de sections à droite
  * - Gestion drag&drop via DnD-kit
+ * 
+ * Props:
+ * - characterId: string|null
+ * - initialCharacter: object|null (peut contenir layout, avatar, sections, etc.)
  *
  * @returns {JSX.Element} Le rendu du composant Dashboard
  */
-export default function Dashboard() {
+export default function Dashboard({ characterId = null, initialCharacter = null }) {
+  const { token } = useContext(AuthContext);
   const TOTAL_SLOTS = 15;
-  const [sections, setSections] = useState(() => {
+
+  const parseLayoutToSections = useCallback((layout) => {
+    if (!layout || !Array.isArray(layout.rows)) {
+      // default empty placeholders
+      return Array.from({ length: TOTAL_SLOTS }).map((_, i) => ({ type: 'empty' }));
+    }
+    // flatten rows preserving order
+    const flat = [];
+    for (const row of layout.rows) {
+      for (const cell of row) {
+        flat.push({
+          id: cell.id ?? `sec-${Date.now()}-${flat.length}`,
+          type: cell.type ?? 'empty',
+          content: cell.content ?? (cell.type === 'empty' ? null : []),
+          collapsed: !!cell.collapsed,
+          width: cell.width ?? undefined,
+        });
+      }
+    }
+    // pad / slice to TOTAL_SLOTS
+    const out = flat.slice(0, TOTAL_SLOTS);
+    while (out.length < TOTAL_SLOTS) out.push({ type: 'empty' });
+    return out;
+  }, []);
+
+  const [sections, setSectionsRaw] = useState(() => {
+    if (initialCharacter?.layout) {
+      return parseLayoutToSections(initialCharacter.layout);
+    }
+    // initial empty
     const real = [];
-    const empties = Array.from({ length: TOTAL_SLOTS - real.length }).map(() => ({
-      type: 'empty',
-    }));
+    const empties = Array.from({ length: TOTAL_SLOTS - real.length }).map(() => ({ type: 'empty' }));
     return [...real, ...empties];
   });
 
-  const [activeTab, setActiveTab] = useState('sections');
-  const [editing, setEditing] = useState({ show: false, sectionId: null });
+  // track dirty state
+  const [isDirty, setIsDirty] = useState(false);
+  useUnsavedWarning(isDirty, 'Modifications non sauvegardées — quitter sans sauvegarder ?');
 
-  const [avatarData, setAvatarData] = useState({
+  // wrap setSections to mark dirty
+  const setSections = (updater) => {
+    setIsDirty(true);
+    setSectionsRaw(updater);
+  };
+
+  // avatar initial
+  const [avatarData, setAvatarData] = useState(() => initialCharacter?.avatar ?? {
     sexe: 'Homme',
     affichage: 'avatar',
     photoUrl: '',
   });
   const [avatarEditing, setAvatarEditing] = useState(false);
+
+  useEffect(() => {
+    if (initialCharacter?.avatar) {
+      setAvatarData(initialCharacter.avatar);
+    }
+  }, [initialCharacter]);
+
+  // if loaded later, override sections
+  useEffect(() => {
+    if (initialCharacter?.layout) {
+      setSectionsRaw(parseLayoutToSections(initialCharacter.layout));
+    }
+  }, [initialCharacter, parseLayoutToSections]);
+
+  // mark dirty if avatar changes
+  useEffect(() => {
+    // if initialCharacter present, compare shallow
+    if (!initialCharacter) return;
+    // naive compare: if avatar differs set dirty
+    if (JSON.stringify(avatarData) !== JSON.stringify(initialCharacter.avatar)) {
+      setIsDirty(true);
+    }
+  }, [avatarData, initialCharacter]);
+
+  const [activeTab, setActiveTab] = useState('sections');
 
   // Hook DnD
   const { handleDragEnd, activeId, setActiveId } = useDragDrop(sections, setSections);
@@ -97,6 +165,66 @@ export default function Dashboard() {
     setSections((secs) => secs.map((s) => (s.id === id ? { ...s, collapsed: !s.collapsed } : s)));
   };
 
+  // saveCharacter avec token
+  const saveCharacter = useCallback(async () => {
+    if (!characterId) {
+      alert('Aucun character sélectionné à sauvegarder.');
+      return;
+    }
+    try {
+      const rows = [];
+      for (let r = 0; r < 3; r++) {
+        const row = [];
+        for (let c = 0; c < 5; c++) {
+          const idx = r * 5 + c;
+          const s = sections[idx] ?? { type: 'empty' };
+          row.push({
+            id: s.id ?? `s${idx + 1}`,
+            type: s.type,
+            width: s.width ?? undefined,
+            content: s.content ?? (s.type === 'empty' ? null : s.content ?? []),
+            isOpen: s.isOpen ?? !s.collapsed,
+          });
+        }
+        rows.push(row);
+      }
+
+      const payload = {
+        title: initialCharacter?.title ?? 'Untitled',
+        description: initialCharacter?.description ?? null,
+        templateType: initialCharacter?.templateType ?? null,
+        layout: { rows },
+        avatar: avatarData,
+      };
+
+      const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
+      await fetchJson(`/apip/characters/${characterId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      setIsDirty(false);
+      alert('Sauvegarde effectuée.');
+    } catch (err) {
+      console.error('Save error', err);
+      alert('Erreur lors de la sauvegarde : ' + (err.message || 'erreur'));
+    }
+  }, [characterId, sections, avatarData, initialCharacter, token]);
+
+  // écoute l'évènement global déclenché par le Header
+  useEffect(() => {
+    const onSave = () => {
+      saveCharacter();
+    };
+    window.addEventListener('save-character', onSave);
+    return () => window.removeEventListener('save-character', onSave);
+  }, [saveCharacter]);
+
+  // UI state for editing sections
+  const [editing, setEditing] = useState({ show: false, sectionId: null });
+
   return (
     <DndContext
       sensors={useSensors(sensor)}
@@ -137,6 +265,15 @@ export default function Dashboard() {
         <Col xs={12} md={3} lg={2}>
           <DroppableZone id="palette" style={{ padding: 0 }}>
             <div className="section-sidebar">
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <h6 style={{ margin: 0 }}>Palette</h6>
+                <div>
+                  <Button size="sm" variant={isDirty ? 'warning' : 'outline-secondary'} onClick={saveCharacter}>
+                    {isDirty ? 'Sauvegarder*' : 'Sauvegarder'}
+                  </Button>
+                </div>
+              </div>
+
               <div className="tab-switcher">
                 <button
                   className={activeTab === 'sections' ? 'active' : ''}
@@ -173,7 +310,7 @@ export default function Dashboard() {
           <Container fluid className="p-0">
             <Card className="mb-4">
               <Card.Body className="dashboard-sections">
-                <SortableContext items={sections.map((s) => s.id)} strategy={rectSortingStrategy}>
+                <SortableContext items={sections.map((s) => s.id ?? `empty-${Math.random()}`)} strategy={rectSortingStrategy}>
                   {sections.map((sec, idx) => (
                     <SectionContainer
                       key={sec.id ?? `empty-${idx}`}

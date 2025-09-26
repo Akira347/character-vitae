@@ -1,6 +1,6 @@
 // src/components/structure/Header.jsx
 import React, { useEffect, useState, useContext } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   Navbar,
   Container,
@@ -11,16 +11,18 @@ import {
   Alert,
   NavDropdown,
   Spinner,
+  Dropdown,
 } from 'react-bootstrap';
 import PlumeIcon from '../../assets/icons/plume.png';
-import { Link } from 'react-router-dom';
 import SignupForm from '../auth/SignupForm';
 import { AuthContext } from '../../contexts/AuthContext';
+import NewCharacterModal from '../../components/characters/NewCharacterModal';
+import { fetchJson } from '../../utils/api';
 
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, login, logout } = useContext(AuthContext);
+  const { user, login, logout, token } = useContext(AuthContext);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -30,7 +32,6 @@ export default function Header() {
     if (open === '1' || confirmed === '1') {
       setView('login');
       setShow(true);
-      // remove params
       params.delete('openLogin');
       params.delete('confirmed');
       const newSearch = params.toString();
@@ -48,9 +49,45 @@ export default function Header() {
 
   const [signupSuccessMessage, setSignupSuccessMessage] = useState(null);
 
-  const tokenKey = 'cv_token';
+  const [showNewCharacter, setShowNewCharacter] = useState(false);
 
-  // try restoring user from token on mount is handled by AuthProvider
+  // characters list + selected
+  const [characters, setCharacters] = useState([]);
+  const [selectedCharId, setSelectedCharId] = useState(null);
+  const [loadingChars, setLoadingChars] = useState(false);
+  const [charsError, setCharsError] = useState(null);
+
+  useEffect(() => {
+    if (!user) {
+      setCharacters([]);
+      setSelectedCharId(null);
+      return;
+    }
+    // fetch characters for current user
+    (async () => {
+      setLoadingChars(true);
+      setCharsError(null);
+      try {
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const data = await fetchJson('/api/characters', { method: 'GET', headers });
+        // ApiPlatform collection might be nested; try to normalise:
+        // If array returned directly, use it; if { 'hydra:member': [...] } handle it.
+        let list = [];
+        if (Array.isArray(data)) list = data;
+        else if (data && Array.isArray(data['hydra:member'])) list = data['hydra:member'];
+        else if (data && data['hydra:member'] === undefined && data['members']) list = data['members']; // fallback
+        setCharacters(list);
+        if (list.length > 0 && !selectedCharId) {
+          setSelectedCharId(list[0].id);
+        }
+      } catch (err) {
+        setCharsError(err.message || 'Impossible de charger les fiches.');
+        setCharacters([]);
+      } finally {
+        setLoadingChars(false);
+      }
+    })();
+  }, [user, token]);
 
   const openLogin = () => {
     setView('login');
@@ -64,23 +101,19 @@ export default function Header() {
     try {
       const result = await login({ username: loginEmail, password: loginPassword });
       if (result.ok) {
-        // succès : on ferme et on redirige vers la home (ou dashboard)
         setShow(false);
         navigate('/');
       } else {
-        // résultat d'erreur : essayer d'extraire message utile
-        let msg = 'E-mail ou mot de passe incorrect'; // message par défaut
+        let msg = 'E-mail ou mot de passe incorrect';
         if (result.body) {
           let backendMsg = null;
           if (result.body.message) backendMsg = result.body.message;
           else if (result.body.error) backendMsg = result.body.error;
           else if (typeof result.body === 'string' && result.body.length) backendMsg = result.body;
-
-          // traduction spécifique
           if (backendMsg === 'Invalid credentials.') {
             msg = 'E-mail ou mot de passe incorrect';
           } else if (backendMsg) {
-            msg = backendMsg; // sinon utiliser le message du backend
+            msg = backendMsg;
           }
         }
         setLoginError(msg);
@@ -95,7 +128,21 @@ export default function Header() {
 
   const handleLogout = () => {
     logout();
-    navigate('/'); // redirection après logout
+    navigate('/');
+  };
+
+  // When user selects a character -> navigate to its edit page
+  const onSelectCharacter = (ev) => {
+    const id = ev.target.value;
+    setSelectedCharId(id);
+    if (id) {
+      navigate(`/dashboard/characters/${id}`);
+    }
+  };
+
+  // Save button triggers global event (Dashboard listens and will save)
+  const onHeaderSave = () => {
+    window.dispatchEvent(new CustomEvent('save-character'));
   };
 
   return (
@@ -105,7 +152,51 @@ export default function Header() {
           <Navbar.Brand as={Link} to="/" className="brand-logo">
             Character Vitae
           </Navbar.Brand>
-          <Nav className="ms-auto">
+
+          <Nav className="ms-auto align-items-center">
+            {user && (
+              <>
+                {/* Sauvegarder (gauche) */}
+                <div className="me-2 d-flex align-items-center">
+                  <Button size="sm" variant="outline-light" onClick={onHeaderSave} aria-label="Sauvegarder">
+                    Sauvegarder
+                  </Button>
+                </div>
+
+                {/* Sélecteur de personnages */}
+                <div className="me-2">
+                  {loadingChars ? (
+                    <Spinner animation="border" size="sm" />
+                  ) : (
+                    <Form.Select
+                      size="sm"
+                      value={selectedCharId ?? ''}
+                      onChange={onSelectCharacter}
+                      aria-label="Choisir fiche"
+                    >
+                      <option value="">Mes fiches</option>
+                      {characters.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.title ?? `#${c.id}`}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  )}
+                </div>
+
+                {/* Nouveau personnage */}
+                <Nav.Item className="me-2">
+                  <Button
+                    className="btn-parchment"
+                    onClick={() => setShowNewCharacter(true)}
+                    aria-label="Nouveau personnage"
+                  >
+                    + Nouveau personnage
+                  </Button>
+                </Nav.Item>
+              </>
+            )}
+
             {!user ? (
               <Nav.Link onClick={openLogin} aria-label="Open login">
                 <img
@@ -116,11 +207,7 @@ export default function Header() {
               </Nav.Link>
             ) : (
               <NavDropdown title={user.fullName || user.email} id="user-dropdown" align="end">
-                <NavDropdown.Item
-                  onClick={() => {
-                    /* go to profile */
-                  }}
-                >
+                <NavDropdown.Item onClick={() => { /* go to profile */ }}>
                   Mon profil
                 </NavDropdown.Item>
                 <NavDropdown.Divider />
@@ -131,6 +218,7 @@ export default function Header() {
         </Container>
       </Navbar>
 
+      {/* Login / Signup modal (unchanged) */}
       <Modal show={show} onHide={() => setShow(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>{view === 'login' ? 'Se connecter' : "S'inscrire"}</Modal.Title>
@@ -216,6 +304,11 @@ export default function Header() {
           )}
         </Modal.Body>
       </Modal>
+
+      <NewCharacterModal
+        show={showNewCharacter}
+        onHide={() => setShowNewCharacter(false)}
+      />
     </>
   );
 }

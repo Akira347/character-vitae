@@ -5,6 +5,7 @@ import Layout from './components/structure/Layout';
 import Dashboard from './pages/Dashboard';
 import NotFoundPage from './pages/NotFoundPage';
 import Confirm from './pages/Confirm';
+import CharacterEdit from './pages/CharacterEdit';
 
 /**
  * Point d’entrée de l’application.
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="/dashboard/characters/:id" element={<CharacterEdit />} />
             <Route path="/confirm" element={<Confirm />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
