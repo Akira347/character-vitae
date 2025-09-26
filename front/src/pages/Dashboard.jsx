@@ -1,7 +1,8 @@
+// src/pages/Dashboard.jsx
 import '../styles/Dashboard.css';
 
-import React, { useState } from 'react';
-import { Row, Col, Card, Container } from 'react-bootstrap';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { Row, Col, Card, Container, Button } from 'react-bootstrap';
 import SectionSelector from '../components/section/SectionSelector';
 import SectionForm from '../components/section/SectionForm';
 import { SECTION_TYPES } from '../constants/sectionTypes';
@@ -9,6 +10,8 @@ import AvatarEditor from '../components/avatar/AvatarEditor';
 import SectionContainer from '../components/section/SectionContainer';
 import SectionPreview from '../components/section/SectionPreview';
 import AvatarInfoPanel from '../components/avatar/AvatarInfoPanel';
+import { AuthContext } from '../contexts/AuthContext';
+import useUnsavedWarning from '../hooks/useUnsavedWarning';
 
 import {
   DndContext,
@@ -21,45 +24,127 @@ import {
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
 
 import { useDragDrop, DroppableZone } from '../tools/dragDrop';
+import { fetchJson } from '../utils/api';
 
-/**
- * Tableau de bord principal :
- * - Palette de sections / Avatar & Infos à gauche
- * - Canvas de sections à droite
- * - Gestion drag&drop via DnD-kit
- *
- * @returns {JSX.Element} Le rendu du composant Dashboard
- */
-export default function Dashboard() {
+export default function Dashboard({ characterId = null, initialCharacter = null }) {
+  const { token } = useContext(AuthContext) || {};
   const TOTAL_SLOTS = 15;
-  const [sections, setSections] = useState(() => {
-    const real = [];
-    const empties = Array.from({ length: TOTAL_SLOTS - real.length }).map(() => ({
+
+  const parseLayoutToSections = useCallback((layout) => {
+    if (!layout || !Array.isArray(layout.rows)) {
+      return Array.from({ length: TOTAL_SLOTS }).map((_, i) => ({
+        id: `empty-${i}`,
+        type: 'empty',
+        content: null,
+        collapsed: true,
+      }));
+    }
+
+    const flat = [];
+    const seen = new Set();
+    for (let r = 0; r < layout.rows.length; r++) {
+      const row = layout.rows[r];
+      if (!Array.isArray(row)) continue;
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c] ?? {};
+
+        // raw id fourni par le serveur (ex: "s1")
+        const rawId = typeof cell.id === 'string' ? cell.id : `s-${flat.length + 1}`;
+
+        // frontend internal id must start with "sec-"
+        let id = rawId;
+        if (!id.startsWith('sec-') && id !== 'sec-avatar') {
+          id = `sec-${id}`;
+        }
+
+        // ensure uniqueness in this layout
+        if (seen.has(id)) {
+          id = `${id}-${flat.length}-${Date.now()}`;
+        }
+        seen.add(id);
+
+        flat.push({
+          id,
+          type: typeof cell.type === 'string' ? cell.type : 'empty',
+          content: Object.prototype.hasOwnProperty.call(cell, 'content')
+            ? cell.content
+            : cell.type === 'empty'
+              ? null
+              : [],
+          collapsed: !!(cell.isCollapsed ?? cell.collapsed ?? true),
+          width: cell.width ?? undefined,
+          // optional: keep original server id if you want to debug later
+          originalId: rawId,
+        });
+      }
+    }
+
+    const out = flat.slice(0, TOTAL_SLOTS);
+    while (out.length < TOTAL_SLOTS) {
+      out.push({
+        id: `empty-${out.length}`,
+        type: 'empty',
+        content: null,
+        collapsed: true,
+      });
+    }
+
+    return out;
+  }, []);
+
+  const [sections, setSectionsRaw] = useState(() => {
+    if (initialCharacter?.layout) {
+      return parseLayoutToSections(initialCharacter.layout);
+    }
+    return Array.from({ length: TOTAL_SLOTS }).map((_, i) => ({
+      id: `empty-${i}`,
       type: 'empty',
+      content: null,
+      collapsed: true,
     }));
-    return [...real, ...empties];
   });
 
-  const [activeTab, setActiveTab] = useState('sections');
-  const [editing, setEditing] = useState({ show: false, sectionId: null });
+  const [isDirty, setIsDirty] = useState(false);
+  useUnsavedWarning(isDirty, 'Modifications non sauvegardées — quitter sans sauvegarder ?');
 
-  const [avatarData, setAvatarData] = useState({
-    sexe: 'Homme',
-    affichage: 'avatar',
-    photoUrl: '',
-  });
+  const setSections = (updater) => {
+    setIsDirty(true);
+    setSectionsRaw((prev) => (typeof updater === 'function' ? updater(prev) : updater));
+  };
+
+  const [avatarData, setAvatarData] = useState(
+    () => initialCharacter?.avatar ?? { sexe: 'Homme', affichage: 'avatar', photoUrl: '' },
+  );
   const [avatarEditing, setAvatarEditing] = useState(false);
 
-  // Hook DnD
+  useEffect(() => {
+    if (initialCharacter?.avatar) {
+      setAvatarData(initialCharacter.avatar);
+    }
+  }, [initialCharacter]);
+
+  useEffect(() => {
+    if (initialCharacter?.layout) {
+      setSectionsRaw(parseLayoutToSections(initialCharacter.layout));
+    }
+  }, [initialCharacter, parseLayoutToSections]);
+
+  useEffect(() => {
+    if (!initialCharacter) return;
+    if (JSON.stringify(avatarData) !== JSON.stringify(initialCharacter.avatar)) {
+      setIsDirty(true);
+    }
+  }, [avatarData, initialCharacter]);
+
+  const [activeTab, setActiveTab] = useState('sections');
+
   const { handleDragEnd, activeId, setActiveId } = useDragDrop(sections, setSections);
   const sensor = useSensor(PointerSensor);
 
   const handleAddSection = (type) => {
-    // si déjà posée, on ne ré-ajoute pas
     if (sections.some((s) => s.type === type)) return;
-    // on trouve le premier slot vide
     const idx = sections.findIndex((s) => s.type === 'empty');
-    if (idx === -1) return; // plus de place
+    if (idx === -1) return;
     const newSection = {
       id: `sec-${Date.now()}`,
       type,
@@ -68,7 +153,7 @@ export default function Dashboard() {
     };
     setSections((prev) => {
       const copy = [...prev];
-      copy[idx] = newSection; // on remplace l’empty slot
+      copy[idx] = newSection;
       return copy;
     });
     setEditing({ show: true, sectionId: newSection.id });
@@ -79,12 +164,11 @@ export default function Dashboard() {
       const idx = prev.findIndex((s) => s.id === id);
       if (idx === -1) return prev;
       const copy = [...prev];
-      copy[idx] = { type: 'empty' }; // on remet un placeholder
+      copy[idx] = { id: `empty-${idx}`, type: 'empty', content: null, collapsed: true };
       return copy;
     });
   };
 
-  // Au lieu de handleAddSectionClick, on gère tous les clics “éditer”
   const handleEditClick = (id) => {
     if (id === 'sec-avatar') {
       setAvatarEditing(true);
@@ -97,6 +181,71 @@ export default function Dashboard() {
     setSections((secs) => secs.map((s) => (s.id === id ? { ...s, collapsed: !s.collapsed } : s)));
   };
 
+  const saveCharacter = useCallback(async () => {
+    if (!characterId) {
+      alert('Aucun character sélectionné à sauvegarder.');
+      return;
+    }
+    try {
+      const rows = [];
+      for (let r = 0; r < 3; r++) {
+        const row = [];
+        for (let c = 0; c < 5; c++) {
+          const idx = r * 5 + c;
+          const s = sections[idx] ?? { type: 'empty' };
+          const backendId = s && s.id && typeof s.id === 'string' && s.id.startsWith('sec-')
+            ? s.id.replace(/^sec-/, '')
+            : (s && s.id) ?? `s${idx + 1}`;
+
+          row.push({
+            id: backendId,
+            type: s.type,
+            width: s.width ?? undefined,
+            content: s.content ?? (s.type === 'empty' ? null : []),
+            isCollapsed: s.isCollapsed ?? !s.collapsed,
+          });
+        }
+        rows.push(row);
+      }
+
+      const payload = {
+        title: initialCharacter?.title ?? 'Untitled',
+        description: initialCharacter?.description ?? null,
+        templateType: initialCharacter?.templateType ?? null,
+        layout: { rows },
+        avatar: avatarData,
+      };
+
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+
+      await fetchJson(`/apip/characters/${characterId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/merge-patch+json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      setIsDirty(false);
+      alert('Sauvegarde effectuée.');
+    } catch (err) {
+      console.error('Save error', err);
+      alert('Erreur lors de la sauvegarde : ' + (err?.message || 'erreur'));
+    }
+  }, [characterId, sections, avatarData, initialCharacter, token]);
+
+  useEffect(() => {
+    const onSave = () => saveCharacter();
+    window.addEventListener('save-character', onSave);
+    return () => window.removeEventListener('save-character', onSave);
+  }, [saveCharacter]);
+
+  const [editing, setEditing] = useState({ show: false, sectionId: null });
+
   return (
     <DndContext
       sensors={useSensors(sensor)}
@@ -105,35 +254,26 @@ export default function Dashboard() {
       onDragEnd={(event) => {
         const { active, over } = event;
 
-        // 1) Si palette→placeholder => on gère nous-mêmes la création + modale
         if (active.id.startsWith('type-') && over?.id?.startsWith('empty-')) {
           const placeIdx = parseInt(over.id.replace('empty-', ''), 10);
           const typeName = active.id.replace(/^type-/, '');
           const newId = `sec-${Date.now()}`;
-          const newSection = {
-            id: newId,
-            type: typeName,
-            content: [],
-            collapsed: false,
-          };
+          const newSection = { id: newId, type: typeName, content: [], collapsed: false };
 
           setSections((prev) => {
             const copy = [...prev];
             copy[placeIdx] = newSection;
             return copy;
           });
-          // **ouvrir** la modale sur ce nouvel id
           setEditing({ show: true, sectionId: newId });
           return;
         }
 
-        // 2) sinon on laisse handleDragEnd faire son boulot (reorder, palette→canvas, suppression…)
         handleDragEnd(event);
       }}
       onDragCancel={() => setActiveId(null)}
     >
       <Row className="gy-4">
-        {/* Palette */}
         <Col xs={12} md={3} lg={2}>
           <DroppableZone id="palette" style={{ padding: 0 }}>
             <div className="section-sidebar">
@@ -168,12 +308,14 @@ export default function Dashboard() {
           </DroppableZone>
         </Col>
 
-        {/* Canvas & Avatar */}
         <Col xs={12} md={9} lg={10}>
           <Container fluid className="p-0">
             <Card className="mb-4">
               <Card.Body className="dashboard-sections">
-                <SortableContext items={sections.map((s) => s.id)} strategy={rectSortingStrategy}>
+                <SortableContext
+                  items={sections.map((s, idx) => s.id ?? `empty-${idx}`)}
+                  strategy={rectSortingStrategy}
+                >
                   {sections.map((sec, idx) => (
                     <SectionContainer
                       key={sec.id ?? `empty-${idx}`}
@@ -198,7 +340,6 @@ export default function Dashboard() {
               </Card.Body>
             </Card>
 
-            {/* Formulaire de section*/}
             <SectionForm
               show={editing.show}
               type={sections.find((s) => s.id === editing.sectionId)?.type}
@@ -212,7 +353,6 @@ export default function Dashboard() {
               onCancel={() => setEditing({ show: false, sectionId: null })}
             />
 
-            {/* pour l’avatar */}
             <AvatarEditor
               show={avatarEditing}
               data={avatarData}
@@ -226,7 +366,6 @@ export default function Dashboard() {
         </Col>
       </Row>
 
-      {/* Overlay pendant le drag */}
       <DragOverlay>
         {activeId?.startsWith('type-') && (
           <div className="p-2 bg-warning border">
@@ -242,19 +381,3 @@ export default function Dashboard() {
     </DndContext>
   );
 }
-
-// Futur appel API pour persister côté serveur
-// try {
-//   await fetch(`/api/characters/${characterId}/sections`, {
-//     method: 'POST', // ou PUT si tu mets à jour
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify({
-//       sectionId: editing.sectionId,
-//       type: /* le type */,
-//       content: data
-//     })
-//   });
-// } catch (err) {
-//   console.error('Erreur de sauvegarde', err);
-//   // idéalement, remonter l’erreur à l’utilisateur
-// }

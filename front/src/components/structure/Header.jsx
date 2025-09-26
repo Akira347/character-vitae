@@ -1,6 +1,6 @@
 // src/components/structure/Header.jsx
-import React, { useEffect, useState, useContext } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useContext, useCallback } from 'react';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   Navbar,
   Container,
@@ -13,14 +13,15 @@ import {
   Spinner,
 } from 'react-bootstrap';
 import PlumeIcon from '../../assets/icons/plume.png';
-import { Link } from 'react-router-dom';
 import SignupForm from '../auth/SignupForm';
 import { AuthContext } from '../../contexts/AuthContext';
+import NewCharacterModal from '../../components/characters/NewCharacterModal';
+import { fetchJson } from '../../utils/api';
 
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, login, logout } = useContext(AuthContext);
+  const { user, login, logout, token } = useContext(AuthContext) || {};
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -30,7 +31,6 @@ export default function Header() {
     if (open === '1' || confirmed === '1') {
       setView('login');
       setShow(true);
-      // remove params
       params.delete('openLogin');
       params.delete('confirmed');
       const newSearch = params.toString();
@@ -45,12 +45,90 @@ export default function Header() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);
-
   const [signupSuccessMessage, setSignupSuccessMessage] = useState(null);
 
-  const tokenKey = 'cv_token';
+  const [showNewCharacter, setShowNewCharacter] = useState(false);
 
-  // try restoring user from token on mount is handled by AuthProvider
+  const [characters, setCharacters] = useState([]);
+  const [selectedCharId, setSelectedCharId] = useState(null);
+  const [loadingChars, setLoadingChars] = useState(false);
+  const [charsError, setCharsError] = useState(null);
+
+  // Robust id extractor: prefer numeric id field, else parse '@id'
+  const extractId = (item) => {
+    if (!item) return null;
+    if (typeof item.id === 'number' || typeof item.id === 'string') {
+      return item.id;
+    }
+    const atId = item['@id'] ?? item['@id'];
+    if (typeof atId === 'string') {
+      const parts = atId.split('/');
+      const last = parts[parts.length - 1];
+      if (last) {
+        // if last is numeric-ish, return as number
+        const n = Number(last);
+        return Number.isNaN(n) ? last : n;
+      }
+    }
+    return null;
+  };
+
+  const loadCharacters = useCallback(async () => {
+    if (!user) {
+      setCharacters([]);
+      setSelectedCharId(null);
+      return;
+    }
+    setLoadingChars(true);
+    setCharsError(null);
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const data = await fetchJson('/apip/characters', { method: 'GET', headers });
+
+      let list = [];
+      // ApiPlatform sometimes returns `member` (your sample), Hydra uses `hydra:member`
+      if (Array.isArray(data)) {
+        list = data;
+      } else if (data && Array.isArray(data.member)) {
+        list = data.member;
+      } else if (data && Array.isArray(data['hydra:member'])) {
+        list = data['hydra:member'];
+      } else if (data && Array.isArray(data['members'])) {
+        list = data['members'];
+      } else if (data && typeof data === 'object') {
+        // fallback: collect object values
+        list = Object.values(data);
+      }
+
+      // Normalize items: ensure id/title exist
+      const normalized = list
+        .map((c) => {
+          const id = extractId(c);
+          const title =
+            typeof c?.title === 'string' && c.title.length ? c.title : id ? `#${id}` : undefined;
+          return {
+            raw: c,
+            id,
+            title,
+          };
+        })
+        .filter((x) => x.id !== null && x.id !== undefined);
+
+      setCharacters(normalized);
+      if (normalized.length > 0 && !selectedCharId) {
+        setSelectedCharId(normalized[0].id);
+      }
+    } catch (err) {
+      setCharsError(err?.message || 'Impossible de charger les fiches.');
+      setCharacters([]);
+    } finally {
+      setLoadingChars(false);
+    }
+  }, [user, token, selectedCharId]);
+
+  useEffect(() => {
+    loadCharacters();
+  }, [loadCharacters]);
 
   const openLogin = () => {
     setView('login');
@@ -64,24 +142,17 @@ export default function Header() {
     try {
       const result = await login({ username: loginEmail, password: loginPassword });
       if (result.ok) {
-        // succès : on ferme et on redirige vers la home (ou dashboard)
         setShow(false);
         navigate('/');
+        setTimeout(() => loadCharacters(), 200);
       } else {
-        // résultat d'erreur : essayer d'extraire message utile
-        let msg = 'E-mail ou mot de passe incorrect'; // message par défaut
+        let msg = 'E-mail ou mot de passe incorrect';
         if (result.body) {
-          let backendMsg = null;
-          if (result.body.message) backendMsg = result.body.message;
-          else if (result.body.error) backendMsg = result.body.error;
-          else if (typeof result.body === 'string' && result.body.length) backendMsg = result.body;
-
-          // traduction spécifique
-          if (backendMsg === 'Invalid credentials.') {
-            msg = 'E-mail ou mot de passe incorrect';
-          } else if (backendMsg) {
-            msg = backendMsg; // sinon utiliser le message du backend
-          }
+          const backendMsg =
+            result.body.message ??
+            result.body.error ??
+            (typeof result.body === 'string' ? result.body : null);
+          if (backendMsg) msg = backendMsg;
         }
         setLoginError(msg);
       }
@@ -95,7 +166,25 @@ export default function Header() {
 
   const handleLogout = () => {
     logout();
-    navigate('/'); // redirection après logout
+    navigate('/');
+  };
+
+  const onSelectCharacter = (ev) => {
+    const id = ev.target.value;
+    setSelectedCharId(id);
+    if (id) {
+      navigate(`/dashboard/characters/${id}`);
+    }
+  };
+
+  const onHeaderSave = () => {
+    window.dispatchEvent(new CustomEvent('save-character'));
+  };
+
+  const onNewCharacterHide = () => {
+    setShowNewCharacter(false);
+    // refresh list after creation
+    setTimeout(() => loadCharacters(), 300);
   };
 
   return (
@@ -105,7 +194,53 @@ export default function Header() {
           <Navbar.Brand as={Link} to="/" className="brand-logo">
             Character Vitae
           </Navbar.Brand>
-          <Nav className="ms-auto">
+
+          <Nav className="ms-auto align-items-center">
+            {user && (
+              <>
+                <div className="me-2 d-flex align-items-center">
+                  <Button
+                    size="sm"
+                    variant="outline-light"
+                    onClick={onHeaderSave}
+                    aria-label="Sauvegarder"
+                  >
+                    Sauvegarder
+                  </Button>
+                </div>
+
+                <div className="me-2">
+                  {loadingChars ? (
+                    <Spinner animation="border" size="sm" />
+                  ) : (
+                    <Form.Select
+                      size="sm"
+                      value={selectedCharId ?? ''}
+                      onChange={onSelectCharacter}
+                      aria-label="Choisir fiche"
+                    >
+                      <option value="">{charsError ? 'Erreur chargement' : 'Mes fiches'}</option>
+                      {characters.map((c) => (
+                        <option key={String(c.id)} value={String(c.id)}>
+                          {c.title ?? `#${c.id}`}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  )}
+                </div>
+
+                <Nav.Item className="me-2">
+                  <Button
+                    className="btn-parchment"
+                    onClick={() => setShowNewCharacter(true)}
+                    aria-label="Nouveau personnage"
+                  >
+                    + Nouveau personnage
+                  </Button>
+                </Nav.Item>
+              </>
+            )}
+
             {!user ? (
               <Nav.Link onClick={openLogin} aria-label="Open login">
                 <img
@@ -116,13 +251,7 @@ export default function Header() {
               </Nav.Link>
             ) : (
               <NavDropdown title={user.fullName || user.email} id="user-dropdown" align="end">
-                <NavDropdown.Item
-                  onClick={() => {
-                    /* go to profile */
-                  }}
-                >
-                  Mon profil
-                </NavDropdown.Item>
+                <NavDropdown.Item>Mon profil</NavDropdown.Item>
                 <NavDropdown.Divider />
                 <NavDropdown.Item onClick={() => handleLogout()}>Se déconnecter</NavDropdown.Item>
               </NavDropdown>
@@ -190,8 +319,8 @@ export default function Header() {
                     <Button variant="primary" type="submit" disabled={loginLoading}>
                       {loginLoading ? (
                         <>
-                          <Spinner animation="border" size="sm" />
-                          &nbsp;Connexion...
+                          {' '}
+                          <Spinner animation="border" size="sm" /> &nbsp;Connexion...
                         </>
                       ) : (
                         'Connexion'
@@ -216,6 +345,8 @@ export default function Header() {
           )}
         </Modal.Body>
       </Modal>
+
+      <NewCharacterModal show={showNewCharacter} onHide={onNewCharacterHide} />
     </>
   );
 }

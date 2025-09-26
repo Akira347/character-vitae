@@ -64,3 +64,31 @@ body,
     letter-spacing: 0.05em;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
 }
+
+.btn-parchment {
+    --p-bg: linear-gradient(180deg, rgba(255, 238, 170, 0.95), rgba(245, 220, 160, 0.95));
+    display: inline-block;
+    padding: 0.45rem 0.9rem;
+    font-family: 'IM Fell English SC', serif;
+    font-weight: 700;
+    color: var(--color-primary);
+    background: var(--p-bg);
+    border: 2px solid rgba(92, 58, 33, 0.9);
+    box-shadow: 0 4px 0 rgba(92, 58, 33, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    border-radius: 8px;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.02em;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+    cursor: pointer;
+}
+
+.btn-parchment:hover,
+.btn-parchment:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 0 rgba(92, 58, 33, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.btn-parchment:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 0 rgba(92, 58, 33, 0.08);
+}

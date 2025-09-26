@@ -1,0 +1,4 @@
+# config/packages/api_platform.yaml
+api_platform:
+  title: 'Character Vitae API'
+  # swagger_ui and docs are enabled by default
