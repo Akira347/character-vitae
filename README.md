@@ -30,6 +30,20 @@
     - Symfony : http://localhost:8000
     - Mailpit : http://localhost:8025
 
+# (optionnel) si tu utilises WSL/Windows : ajuster safe.directory pour composer dans le conteneur
+# (exécuté sur la machine hôte si besoin)
+git config --global --add safe.directory $(pwd)
+
+---
+
+## 🗄 Base de données & fixtures
+
+# dans le container app
+docker compose exec app bash -lc "php bin/console doctrine:database:create --if-not-exists"
+docker compose exec app bash -lc "php bin/console doctrine:migrations:migrate --no-interaction"
+# charger fixtures (dev)
+docker compose exec app bash -lc "php bin/console doctrine:fixtures:load --no-interaction"
+
 ---
 
 ## 🛠️ Commandes utiles (Makefile)
