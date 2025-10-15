@@ -67,7 +67,9 @@ export function useDragDrop(sections, setSections) {
     if (active.id.startsWith('sec-') && over.id === 'palette' && active.id !== 'sec-avatar') {
       setSections((prev) =>
         prev.map((s, i) =>
-          s.id === active.id ? { id: `empty-${i}`, type: 'empty', content: null, collapsed: true } : s,
+          s.id === active.id
+            ? { id: `empty-${i}`, type: 'empty', content: null, collapsed: true }
+            : s,
         ),
       );
       return;

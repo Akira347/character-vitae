@@ -1,5 +1,5 @@
 // src/components/structure/Header.jsx
-import React, { useEffect, useState, useContext, useCallback } from 'react';
+import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   Navbar,
@@ -16,45 +16,44 @@ import PlumeIcon from '../../assets/icons/plume.png';
 import SignupForm from '../auth/SignupForm';
 import { AuthContext } from '../../contexts/AuthContext';
 import NewCharacterModal from '../../components/characters/NewCharacterModal';
+import HeaderDeleteButton from './HeaderDeleteButton';
 import { fetchJson } from '../../utils/api';
+import '../../styles/header.css';
 
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, login, logout, token } = useContext(AuthContext) || {};
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const open = params.get('openLogin');
-    const confirmed = params.get('confirmed');
-
-    if (open === '1' || confirmed === '1') {
-      setView('login');
-      setShow(true);
-      params.delete('openLogin');
-      params.delete('confirmed');
-      const newSearch = params.toString();
-      navigate(location.pathname + (newSearch ? '?' + newSearch : ''), { replace: true });
-    }
-  }, [location, navigate]);
-
+  // login/signup modal
   const [show, setShow] = useState(false);
   const [view, setView] = useState('login');
 
+  // login state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);
   const [signupSuccessMessage, setSignupSuccessMessage] = useState(null);
 
-  const [showNewCharacter, setShowNewCharacter] = useState(false);
-
+  // characters
   const [characters, setCharacters] = useState([]);
   const [selectedCharId, setSelectedCharId] = useState(null);
   const [loadingChars, setLoadingChars] = useState(false);
   const [charsError, setCharsError] = useState(null);
 
-  // Robust id extractor: prefer numeric id field, else parse '@id'
+  // modal create/edit
+  const [showNewCharacter, setShowNewCharacter] = useState(false);
+  const [modalMode, setModalMode] = useState('create');
+  const [modalInitialData, setModalInitialData] = useState(null);
+
+  // inline notification
+  const [inlineNotify, setInlineNotify] = useState(null);
+
+  // Save button dirty state (listened from Dashboard)
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Robust id extractor
   const extractId = (item) => {
     if (!item) return null;
     if (typeof item.id === 'number' || typeof item.id === 'string') {
@@ -65,7 +64,6 @@ export default function Header() {
       const parts = atId.split('/');
       const last = parts[parts.length - 1];
       if (last) {
-        // if last is numeric-ish, return as number
         const n = Number(last);
         return Number.isNaN(n) ? last : n;
       }
@@ -77,7 +75,7 @@ export default function Header() {
     if (!user) {
       setCharacters([]);
       setSelectedCharId(null);
-      return;
+      return [];
     }
     setLoadingChars(true);
     setCharsError(null);
@@ -86,7 +84,6 @@ export default function Header() {
       const data = await fetchJson('/apip/characters', { method: 'GET', headers });
 
       let list = [];
-      // ApiPlatform sometimes returns `member` (your sample), Hydra uses `hydra:member`
       if (Array.isArray(data)) {
         list = data;
       } else if (data && Array.isArray(data.member)) {
@@ -96,31 +93,30 @@ export default function Header() {
       } else if (data && Array.isArray(data['members'])) {
         list = data['members'];
       } else if (data && typeof data === 'object') {
-        // fallback: collect object values
         list = Object.values(data);
       }
 
-      // Normalize items: ensure id/title exist
       const normalized = list
         .map((c) => {
           const id = extractId(c);
           const title =
             typeof c?.title === 'string' && c.title.length ? c.title : id ? `#${id}` : undefined;
-          return {
-            raw: c,
-            id,
-            title,
-          };
+          return { raw: c, id, title };
         })
         .filter((x) => x.id !== null && x.id !== undefined);
 
       setCharacters(normalized);
       if (normalized.length > 0 && !selectedCharId) {
         setSelectedCharId(normalized[0].id);
+      } else if (normalized.length === 0) {
+        setSelectedCharId(null);
       }
+
+      return normalized;
     } catch (err) {
       setCharsError(err?.message || 'Impossible de charger les fiches.');
       setCharacters([]);
+      return [];
     } finally {
       setLoadingChars(false);
     }
@@ -129,6 +125,83 @@ export default function Header() {
   useEffect(() => {
     loadCharacters();
   }, [loadCharacters]);
+
+  useEffect(() => {
+    const onOpenSignup = (ev) => {
+      setView('signup');
+      setShow(true);
+      // éventuellement focus / preset des champs si ev.detail fourni
+    };
+    window.addEventListener('open-signup', onOpenSignup);
+    return () => window.removeEventListener('open-signup', onOpenSignup);
+  }, []);
+
+  // events : notify, created, updated, deleted, dirty-changed
+  useEffect(() => {
+    const onNotify = (ev) => {
+      const d = (ev && ev.detail) || {};
+      setInlineNotify({ message: d.message || 'Info', variant: d.variant || 'info' });
+      const timeout = typeof d.timeout === 'number' ? d.timeout : 3000;
+      setTimeout(() => setInlineNotify(null), timeout);
+    };
+
+    const onCreated = async (ev) => {
+      // refresh & select created id
+      const id = ev?.detail?.id ?? null;
+      const list = await loadCharacters();
+      if (id) {
+        setSelectedCharId(id);
+        navigate(`/dashboard/characters/${id}`);
+      } else if (list && list.length > 0) {
+        setSelectedCharId(list[0].id);
+        navigate(`/dashboard/characters/${list[0].id}`);
+      }
+      window.dispatchEvent(
+        new CustomEvent('notify', {
+          detail: { message: 'Fiche créée', variant: 'success', timeout: 2500 },
+        }),
+      );
+    };
+
+    const onUpdated = async () => {
+      await loadCharacters();
+      window.dispatchEvent(
+        new CustomEvent('notify', {
+          detail: { message: 'Fiche mise à jour', variant: 'success', timeout: 2000 },
+        }),
+      );
+    };
+
+    const onDeleted = async () => {
+      const list = await loadCharacters();
+      if (list && list.length > 0) {
+        setSelectedCharId(list[0].id);
+        navigate(`/dashboard/characters/${list[0].id}`);
+      } else {
+        setSelectedCharId(null);
+        navigate('/');
+      }
+    };
+
+    const onDirtyChanged = (ev) => {
+      const d = ev?.detail ?? {};
+      setIsDirty(Boolean(d.isDirty));
+    };
+
+    window.addEventListener('notify', onNotify);
+    window.addEventListener('character-created', onCreated);
+    window.addEventListener('character-updated', onUpdated);
+    window.addEventListener('character-deleted', onDeleted);
+    window.addEventListener('dirty-changed', onDirtyChanged);
+
+    return () => {
+      window.removeEventListener('notify', onNotify);
+      window.removeEventListener('character-created', onCreated);
+      window.removeEventListener('character-updated', onUpdated);
+      window.removeEventListener('character-deleted', onDeleted);
+      window.removeEventListener('dirty-changed', onDirtyChanged);
+    };
+  }, [loadCharacters, navigate]);
 
   const openLogin = () => {
     setView('login');
@@ -143,7 +216,7 @@ export default function Header() {
       const result = await login({ username: loginEmail, password: loginPassword });
       if (result.ok) {
         setShow(false);
-        navigate('/');
+        navigate('/dashboard');
         setTimeout(() => loadCharacters(), 200);
       } else {
         let msg = 'E-mail ou mot de passe incorrect';
@@ -177,35 +250,94 @@ export default function Header() {
     }
   };
 
-  const onHeaderSave = () => {
+  const onHeaderSave = async () => {
+    // if no characters exist, create default "Mon CV" first
+    if (!characters || characters.length === 0) {
+      try {
+        const headers = {
+          'Content-Type': 'application/ld+json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
+        const body = {
+          title: 'Mon CV',
+          description: '',
+          templateType: 'blank',
+        };
+        // fetchJson attend body string — on envoie JSON stringifié
+        const res = await fetchJson('/api/characters', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        });
+        const newId = res?.id ?? (res?.data && res.data.id) ?? null;
+        window.dispatchEvent(new CustomEvent('character-created', { detail: { id: newId } }));
+      } catch (err) {
+        console.error('Erreur création Mon CV', err);
+        window.dispatchEvent(
+          new CustomEvent('notify', {
+            detail: { message: 'Impossible de créer Mon CV', variant: 'danger', timeout: 4000 },
+          }),
+        );
+        return;
+      }
+    }
+    // then dispatch save-character which Dashboard listens to
     window.dispatchEvent(new CustomEvent('save-character'));
   };
 
   const onNewCharacterHide = () => {
     setShowNewCharacter(false);
-    // refresh list after creation
+    setModalInitialData(null);
+    setModalMode('create');
     setTimeout(() => loadCharacters(), 300);
+  };
+
+  // Edit button handler
+  const onEditClick = () => {
+    if (!selectedCharId) return; // if none, button is hidden anyway
+    const found = characters.find((c) => String(c.id) === String(selectedCharId));
+    setModalMode('edit');
+    setModalInitialData(found ? found.raw : { id: selectedCharId });
+    setShowNewCharacter(true);
   };
 
   return (
     <>
       <Navbar expand="lg" className="px-3">
-        <Container fluid>
-          <Navbar.Brand as={Link} to="/" className="brand-logo">
+        <Container fluid className="d-flex align-items-center">
+          <Navbar.Brand as={Link} to="/" className="brand-logo me-auto">
             Character Vitae
           </Navbar.Brand>
 
           <Nav className="ms-auto align-items-center">
+            {/* ----- BOUTON PROFIL DE DEMONSTRATION (toujours visible) ----- */}
+            <div className="me-2 d-none d-md-block">
+              <button
+                type="button"
+                onClick={() => navigate('/demo')}
+                title="Voir un profil de démonstration"
+                className="btn-demo"
+              >
+                Profil de démonstration
+              </button>
+            </div>
+
             {user && (
               <>
                 <div className="me-2 d-flex align-items-center">
                   <Button
                     size="sm"
-                    variant="outline-light"
+                    variant={isDirty ? 'warning' : 'outline-light'}
                     onClick={onHeaderSave}
                     aria-label="Sauvegarder"
+                    style={{
+                      background: isDirty ? '#FFD700' : undefined,
+                      borderColor: isDirty ? '#E6C200' : undefined,
+                      color: isDirty ? '#000' : undefined,
+                      fontWeight: isDirty ? 700 : undefined,
+                    }}
                   >
-                    Sauvegarder
+                    {isDirty ? 'Sauvegarder*' : 'Sauvegarder'}
                   </Button>
                 </div>
 
@@ -218,8 +350,12 @@ export default function Header() {
                       value={selectedCharId ?? ''}
                       onChange={onSelectCharacter}
                       aria-label="Choisir fiche"
+                      style={{
+                        minWidth: 200,
+                        background: characters && characters.length ? undefined : '#ffffff',
+                      }}
                     >
-                      <option value="">{charsError ? 'Erreur chargement' : 'Mes fiches'}</option>
+                      <option value="">{charsError ? 'Erreur chargement' : 'Aucune fiche'}</option>
                       {characters.map((c) => (
                         <option key={String(c.id)} value={String(c.id)}>
                           {c.title ?? `#${c.id}`}
@@ -229,11 +365,31 @@ export default function Header() {
                   )}
                 </div>
 
+                {characters.length > 0 && (
+                  <div className="me-2">
+                    <Button
+                      size="sm"
+                      variant="outline-light"
+                      onClick={onEditClick}
+                      aria-label="Éditer la fiche sélectionnée"
+                      style={{ marginRight: 8 }}
+                    >
+                      ✎ Éditer
+                    </Button>
+                  </div>
+                )}
+
                 <Nav.Item className="me-2">
                   <Button
                     className="btn-parchment"
-                    onClick={() => setShowNewCharacter(true)}
+                    onClick={() => {
+                      setModalMode('create');
+                      setModalInitialData(null);
+                      setShowNewCharacter(true);
+                    }}
                     aria-label="Nouveau personnage"
+                    onMouseOver={(e) => (e.currentTarget.style.border = '1px solid #FFD700')}
+                    onMouseOut={(e) => (e.currentTarget.style.border = '1px solid transparent')}
                   >
                     + Nouveau personnage
                   </Button>
@@ -241,8 +397,13 @@ export default function Header() {
               </>
             )}
 
+            {/* plume / login */}
             {!user ? (
-              <Nav.Link onClick={openLogin} aria-label="Open login">
+              <Nav.Link
+                onClick={openLogin}
+                aria-label="Open login"
+                className="d-flex align-items-center"
+              >
                 <img
                   src={PlumeIcon}
                   alt="Connexion"
@@ -260,6 +421,7 @@ export default function Header() {
         </Container>
       </Navbar>
 
+      {/* login modal (inchangé) */}
       <Modal show={show} onHide={() => setShow(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>{view === 'login' ? 'Se connecter' : "S'inscrire"}</Modal.Title>
@@ -296,7 +458,6 @@ export default function Header() {
                     disabled={loginLoading}
                   />
                 </Form.Group>
-
                 <div className="d-flex justify-content-between align-items-center">
                   <div>
                     <Button
@@ -319,7 +480,6 @@ export default function Header() {
                     <Button variant="primary" type="submit" disabled={loginLoading}>
                       {loginLoading ? (
                         <>
-                          {' '}
                           <Spinner animation="border" size="sm" /> &nbsp;Connexion...
                         </>
                       ) : (
@@ -346,7 +506,12 @@ export default function Header() {
         </Modal.Body>
       </Modal>
 
-      <NewCharacterModal show={showNewCharacter} onHide={onNewCharacterHide} />
+      <NewCharacterModal
+        show={showNewCharacter}
+        onHide={onNewCharacterHide}
+        mode={modalMode}
+        initialData={modalInitialData}
+      />
     </>
   );
 }

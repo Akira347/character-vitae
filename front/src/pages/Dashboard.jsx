@@ -1,4 +1,3 @@
-// src/pages/Dashboard.jsx
 import '../styles/Dashboard.css';
 
 import React, { useState, useEffect, useContext, useCallback } from 'react';
@@ -26,7 +25,11 @@ import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
 import { useDragDrop, DroppableZone } from '../tools/dragDrop';
 import { fetchJson } from '../utils/api';
 
-export default function Dashboard({ characterId = null, initialCharacter = null }) {
+export default function Dashboard({
+  characterId = null,
+  initialCharacter = null,
+  readOnly = false,
+}) {
   const { token } = useContext(AuthContext) || {};
   const TOTAL_SLOTS = 15;
 
@@ -48,16 +51,11 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
       for (let c = 0; c < row.length; c++) {
         const cell = row[c] ?? {};
 
-        // raw id fourni par le serveur (ex: "s1")
         const rawId = typeof cell.id === 'string' ? cell.id : `s-${flat.length + 1}`;
-
-        // frontend internal id must start with "sec-"
         let id = rawId;
         if (!id.startsWith('sec-') && id !== 'sec-avatar') {
           id = `sec-${id}`;
         }
-
-        // ensure uniqueness in this layout
         if (seen.has(id)) {
           id = `${id}-${flat.length}-${Date.now()}`;
         }
@@ -73,7 +71,6 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
               : [],
           collapsed: !!(cell.isCollapsed ?? cell.collapsed ?? true),
           width: cell.width ?? undefined,
-          // optional: keep original server id if you want to debug later
           originalId: rawId,
         });
       }
@@ -104,6 +101,12 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
     }));
   });
 
+  useEffect(() => {
+    if (initialCharacter?.layout) {
+      setSectionsRaw(parseLayoutToSections(initialCharacter.layout));
+    }
+  }, [initialCharacter, parseLayoutToSections]);
+
   const [isDirty, setIsDirty] = useState(false);
   useUnsavedWarning(isDirty, 'Modifications non sauvegardées — quitter sans sauvegarder ?');
 
@@ -124,12 +127,6 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
   }, [initialCharacter]);
 
   useEffect(() => {
-    if (initialCharacter?.layout) {
-      setSectionsRaw(parseLayoutToSections(initialCharacter.layout));
-    }
-  }, [initialCharacter, parseLayoutToSections]);
-
-  useEffect(() => {
     if (!initialCharacter) return;
     if (JSON.stringify(avatarData) !== JSON.stringify(initialCharacter.avatar)) {
       setIsDirty(true);
@@ -138,10 +135,12 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
 
   const [activeTab, setActiveTab] = useState('sections');
 
+  // Drag/drop helpers — only initialised if not readOnly
   const { handleDragEnd, activeId, setActiveId } = useDragDrop(sections, setSections);
   const sensor = useSensor(PointerSensor);
 
   const handleAddSection = (type) => {
+    if (readOnly) return;
     if (sections.some((s) => s.type === type)) return;
     const idx = sections.findIndex((s) => s.type === 'empty');
     if (idx === -1) return;
@@ -156,10 +155,10 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
       copy[idx] = newSection;
       return copy;
     });
-    setEditing({ show: true, sectionId: newSection.id });
   };
 
   const handleRemoveSection = (id) => {
+    if (readOnly) return;
     setSections((prev) => {
       const idx = prev.findIndex((s) => s.id === id);
       if (idx === -1) return prev;
@@ -169,83 +168,94 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
     });
   };
 
-  const handleEditClick = (id) => {
-    if (id === 'sec-avatar') {
-      setAvatarEditing(true);
-    } else {
-      setEditing({ show: true, sectionId: id });
-    }
-  };
-
   const toggleCollapse = (id) => {
     setSections((secs) => secs.map((s) => (s.id === id ? { ...s, collapsed: !s.collapsed } : s)));
   };
 
-  const saveCharacter = useCallback(async () => {
-    if (!characterId) {
-      alert('Aucun character sélectionné à sauvegarder.');
-      return;
-    }
-    try {
-      const rows = [];
-      for (let r = 0; r < 3; r++) {
-        const row = [];
-        for (let c = 0; c < 5; c++) {
-          const idx = r * 5 + c;
-          const s = sections[idx] ?? { type: 'empty' };
-          const backendId = s && s.id && typeof s.id === 'string' && s.id.startsWith('sec-')
-            ? s.id.replace(/^sec-/, '')
-            : (s && s.id) ?? `s${idx + 1}`;
+  // Save — unchanged (header triggers); Dashboard only emits save-character event listened elsewhere
+  const saveCharacter = async () => {
+    // no-op here; Header triggers save via event
+    return;
+  };
 
-          row.push({
-            id: backendId,
-            type: s.type,
-            width: s.width ?? undefined,
-            content: s.content ?? (s.type === 'empty' ? null : []),
-            isCollapsed: s.isCollapsed ?? !s.collapsed,
-          });
-        }
-        rows.push(row);
-      }
-
-      const payload = {
-        title: initialCharacter?.title ?? 'Untitled',
-        description: initialCharacter?.description ?? null,
-        templateType: initialCharacter?.templateType ?? null,
-        layout: { rows },
-        avatar: avatarData,
-      };
-
-      const headers = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
-      await fetchJson(`/apip/characters/${characterId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/merge-patch+json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      setIsDirty(false);
-      alert('Sauvegarde effectuée.');
-    } catch (err) {
-      console.error('Save error', err);
-      alert('Erreur lors de la sauvegarde : ' + (err?.message || 'erreur'));
-    }
-  }, [characterId, sections, avatarData, initialCharacter, token]);
-
-  useEffect(() => {
-    const onSave = () => saveCharacter();
-    window.addEventListener('save-character', onSave);
-    return () => window.removeEventListener('save-character', onSave);
-  }, [saveCharacter]);
-
+  // Editing state (local SectionForm)
   const [editing, setEditing] = useState({ show: false, sectionId: null });
 
+  // Helper: render sections (used in both readOnly and interactive mode)
+  const renderSections = () =>
+    sections.map((sec, idx) => (
+      <SectionContainer
+        key={sec.id ?? `empty-${idx}`}
+        id={sec.id ?? `empty-${idx}`}
+        type={sec.type}
+        onToggle={toggleCollapse}
+        onEdit={
+          readOnly
+            ? null
+            : sec.type !== 'empty'
+              ? (id) => setEditing({ show: true, sectionId: id })
+              : null
+        }
+        onDelete={
+          readOnly || sec.type === 'empty' || sec.id === 'sec-avatar' ? null : handleRemoveSection
+        }
+        collapsed={sec.collapsed}
+        isDragging={activeId === sec.id}
+        readOnly={readOnly}
+      >
+        {sec.type !== 'empty' && (
+          <div className="section-content">
+            <SectionPreview type={sec.type} data={sec.content} />
+          </div>
+        )}
+      </SectionContainer>
+    ));
+
+  // If readOnly: render a static layout without DnD wrappers
+  if (readOnly) {
+    return (
+      <div className="dashboard-readonly">
+        <Row className="gy-4">
+          <Col xs={12} md={3} lg={2}>
+            <div className="section-sidebar">
+              <div className="tab-switcher">
+                <button
+                  className={activeTab === 'sections' ? 'active' : ''}
+                  onClick={() => setActiveTab('sections')}
+                >
+                  Sections
+                </button>
+                <button
+                  className={activeTab === 'avatar' ? 'active' : ''}
+                  onClick={() => setActiveTab('avatar')}
+                >
+                  Avatar & Infos
+                </button>
+              </div>
+
+              <div className="tab-content">
+                {activeTab === 'sections' ? (
+                  <div style={{ padding: 10 }}>Aperçu — lecture seule</div>
+                ) : (
+                  <AvatarInfoPanel data={avatarData} onEditAvatar={() => {}} />
+                )}
+              </div>
+            </div>
+          </Col>
+
+          <Col xs={12} md={9} lg={10}>
+            <Container fluid className="p-0">
+              <Card className="mb-4">
+                <Card.Body className="dashboard-sections">{renderSections()}</Card.Body>
+              </Card>
+            </Container>
+          </Col>
+        </Row>
+      </div>
+    );
+  }
+
+  // Interactive mode (original behaviour with DnD)
   return (
     <DndContext
       sensors={useSensors(sensor)}
@@ -316,26 +326,7 @@ export default function Dashboard({ characterId = null, initialCharacter = null 
                   items={sections.map((s, idx) => s.id ?? `empty-${idx}`)}
                   strategy={rectSortingStrategy}
                 >
-                  {sections.map((sec, idx) => (
-                    <SectionContainer
-                      key={sec.id ?? `empty-${idx}`}
-                      id={sec.id ?? `empty-${idx}`}
-                      type={sec.type}
-                      onToggle={toggleCollapse}
-                      onEdit={sec.type !== 'empty' ? handleEditClick : null}
-                      onDelete={
-                        sec.type === 'empty' || sec.id === 'sec-avatar' ? null : handleRemoveSection
-                      }
-                      collapsed={sec.collapsed}
-                      isDragging={activeId === sec.id}
-                    >
-                      {sec.type !== 'empty' && (
-                        <div className="section-content">
-                          <SectionPreview type={sec.type} data={sec.content} />
-                        </div>
-                      )}
-                    </SectionContainer>
-                  ))}
+                  {renderSections()}
                 </SortableContext>
               </Card.Body>
             </Card>

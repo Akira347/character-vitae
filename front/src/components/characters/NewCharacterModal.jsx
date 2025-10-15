@@ -1,20 +1,14 @@
 // src/components/characters/NewCharacterModal.jsx
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Modal, Button, Form, Row, Col, Image, Alert, Spinner } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
-
-// import JSON templates
+import { fetchJson } from '../../utils/api';
 import TEMPLATES from '../../data/templates.json';
 
-export default function NewCharacterModal({ show, onHide }) {
-  const navigate = useNavigate();
+export default function NewCharacterModal({ show, onHide, mode = 'create', initialData = null }) {
   const { token } = useContext(AuthContext) || {};
-
-  const templateList = useMemo(() => {
-    return Array.isArray(TEMPLATES) ? TEMPLATES : Object.values(TEMPLATES ?? {});
-  }, []);
-
+  const templateList = Array.isArray(TEMPLATES) ? TEMPLATES : Object.values(TEMPLATES ?? {});
+  // local state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [templateKey, setTemplateKey] = useState(
@@ -24,19 +18,35 @@ export default function NewCharacterModal({ show, onHide }) {
   const [error, setError] = useState(null);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
+  // prevShow ref to detect opening transition
+  const prevShowRef = useRef(false);
   useEffect(() => {
-    if (show) {
-      setTitle('');
-      setDescription('');
-      setTemplateKey(templateList.length ? templateList[0].key : 'blank');
+    const was = prevShowRef.current;
+    if (!was && show) {
+      // modal opened: initialize fields from initialData if edit, or reset if create
+      if (mode === 'edit' && initialData) {
+        setTitle(initialData.title ?? '');
+        setDescription(initialData.description ?? '');
+        setTemplateKey(
+          initialData.templateType ?? (templateList.length ? templateList[0].key : 'blank'),
+        );
+      } else {
+        setTitle('');
+        setDescription('');
+        setTemplateKey(templateList.length ? templateList[0].key : 'blank');
+      }
       setError(null);
       setSubmitting(false);
       setPreviewModalOpen(false);
     }
-  }, [show]);
+    prevShowRef.current = show;
+  }, [show, mode, initialData, templateList]);
+
+  const selectedTemplate = templateList.find((t) => t.key === templateKey) ?? null;
 
   const handleSubmit = async (ev) => {
-    if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+    ev.preventDefault();
+    if (submitting) return;
     setError(null);
 
     if (!title.trim()) {
@@ -44,10 +54,15 @@ export default function NewCharacterModal({ show, onHide }) {
       return;
     }
 
+    if (!token) {
+      setError('Vous devez être connecté pour créer une fiche.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const headers = {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/ld+json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
@@ -71,15 +86,18 @@ export default function NewCharacterModal({ show, onHide }) {
         json = null;
       }
 
-      if (res.ok || res.status === 201) {
+      if (res.status === 201 || res.ok) {
         onHide?.();
 
-        const id = json?.id ?? json?.data?.id ?? json?._id ?? null;
+        // choose id from various possible formats
+        const id = json?.id ?? json?._id ?? (json?.['@id'] ? json['@id'].split('/').pop() : null);
         if (id) {
           navigate(`/dashboard/characters/${id}?created=1`);
         } else {
           navigate('/dashboard');
         }
+      } else if (res.status === 401) {
+        setError('Authentification requise. Veuillez vous reconnecter.');
       } else {
         const msg = (json && (json.message || json.error)) || text || `Erreur ${res.status}`;
         setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
@@ -92,19 +110,19 @@ export default function NewCharacterModal({ show, onHide }) {
     }
   };
 
-  const selectedTemplate = templateList.find((t) => t.key === templateKey) ?? null;
-
   return (
     <>
       <Modal show={show} onHide={() => onHide?.()} size="lg" centered>
         <Modal.Header closeButton>
-          <Modal.Title>Nouveau personnage</Modal.Title>
+          <Modal.Title>
+            {mode === 'edit' ? 'Édition du personnage' : 'Nouveau personnage'}
+          </Modal.Title>
         </Modal.Header>
 
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
             {error && (
-              <Alert variant="danger" data-testid="newchar-error">
+              <Alert data-testid="modal-error" variant="danger">
                 {error}
               </Alert>
             )}
@@ -116,7 +134,6 @@ export default function NewCharacterModal({ show, onHide }) {
                 placeholder="Ex : Guerrier de la data"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                aria-label="Titre de la fiche"
               />
             </Form.Group>
 
@@ -139,22 +156,13 @@ export default function NewCharacterModal({ show, onHide }) {
                     <div
                       role="button"
                       onClick={() => setTemplateKey(t.key)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setTemplateKey(t.key);
-                        }
-                      }}
+                      onKeyDown={() => setTemplateKey(t.key)}
                       tabIndex={0}
-                      className={`p-2 border rounded h-100 d-flex flex-column justify-content-between ${
-                        t.key === templateKey ? 'border-3 border-primary' : ''
-                      }`}
+                      className={`p-2 border rounded h-100 d-flex flex-column justify-content-between ${t.key === templateKey ? 'border-3 border-primary' : ''}`}
                       style={{
                         cursor: 'pointer',
                         background: t.key === templateKey ? 'rgba(0,0,0,0.03)' : '',
                       }}
-                      aria-pressed={t.key === templateKey}
-                      aria-label={`Choisir modèle ${t.label}`}
                     >
                       <div>
                         <strong>{t.label}</strong>
@@ -236,7 +244,7 @@ export default function NewCharacterModal({ show, onHide }) {
               Annuler
             </Button>
             <Button
-              data-testid="submit-newchar"
+              data-testid="modal-submit"
               variant="primary"
               type="submit"
               disabled={submitting}
@@ -246,6 +254,8 @@ export default function NewCharacterModal({ show, onHide }) {
                   <Spinner animation="border" size="sm" />
                   &nbsp;Enregistrement...
                 </>
+              ) : mode === 'edit' ? (
+                'Enregistrer les modifications'
               ) : (
                 'Enregistrer'
               )}
@@ -275,7 +285,13 @@ export default function NewCharacterModal({ show, onHide }) {
           <Button variant="secondary" onClick={() => setPreviewModalOpen(false)}>
             Fermer
           </Button>
-          <Button variant="primary" onClick={() => setPreviewModalOpen(false)}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setTemplateKey(selectedTemplate?.key ?? 'blank');
+              setPreviewModalOpen(false);
+            }}
+          >
             Valider ce modèle
           </Button>
         </Modal.Footer>

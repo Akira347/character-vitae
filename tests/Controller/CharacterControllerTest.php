@@ -46,13 +46,15 @@ class CharacterControllerTest extends WebTestCase
         $content = (string) $client->getResponse()->getContent();
         $data = \json_decode($content, true);
 
-        // indiquer à phpstan que $data est bien un tableau associatif à ce point du test
         /** @var array<string,mixed> $data */
         $this->assertIsArray($data);
         $this->assertArrayHasKey('token', $data);
 
-        // extraire le token de façon sûre
-        $token = (string) ($data['token'] ?? '');
+        // extraire le token de façon sûre (vérifier le type avant le cast)
+        $token = '';
+        if (array_key_exists('token', $data) && (is_scalar($data['token']) || $data['token'] === null)) {
+            $token = (string) ($data['token'] ?? '');
+        }
 
         // create character
         $payload2 = \json_encode([

@@ -1,4 +1,3 @@
-// src/components/section/SectionContainer.jsx
 import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useSortable } from '@dnd-kit/sortable';
@@ -6,77 +5,85 @@ import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
 /**
- * Conteneur d’une section du CV (drag, resize, collapse, edit, delete).
+ * SectionContainer
  *
- * @param {object} props              Props du composant (destructurées ci-dessous)
- * @param {string}   props.id         Identifiant unique de la section
- * @param {string}   props.type       Type de la section (ou "empty")
- * @param {boolean}  [props.collapsed] Si true, la section est repliée
- * @param {Function} props.onToggle   Fonction appelée avec (id) pour basculer collapsed
- * @param {Function} [props.onEdit]   Fonction appelée avec (id) sur “Modifier”
- * @param {Function} [props.onDelete] Fonction appelée avec (id) sur “Supprimer”
- * @param {React.ReactNode} [props.children] Contenu interne de la section
- * @returns {JSX.Element}             Le rendu du composant SectionContainer
+ * Props :
+ * - id, type, collapsed, onToggle, onEdit, onDelete
+ * - readOnly: si true, désactive drag&drop & edition (mais conserve collapse)
  */
 export default function SectionContainer({
   id,
   type,
-  collapsed,
+  collapsed = false,
   onToggle,
-  onEdit,
-  onDelete,
-  children,
+  onEdit = null,
+  onDelete = null,
+  children = null,
+  readOnly = false,
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
   const containerRef = useRef(null);
-  const resizing = useRef(null);
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id });
-  const isEmpty = type === 'empty';
+
+  // Si on n'est pas en lecture seule, hook DnD (sortable + droppable)
+  let sortable = null;
+  let dropInfo = null;
+  try {
+    if (!readOnly) {
+      sortable = useSortable({ id });
+      dropInfo = useDroppable({ id });
+    }
+  } catch (e) {
+    // silence : si DnD n'est pas disponible (render server / readOnly) on ignore
+    sortable = null;
+    dropInfo = null;
+  }
+
+  const attributes = sortable?.attributes ?? {};
+  const listeners = sortable?.listeners ?? {};
+  const setNodeRefSortable = sortable?.setNodeRef ?? (() => {});
+  const transform = sortable?.transform ?? null;
+  const transition = sortable?.transition ?? undefined;
+  const setDropRef = dropInfo?.setNodeRef ?? (() => {});
+  const isOver = !!dropInfo?.isOver;
+
+  // rootRef combiné
   const rootRef = (node) => {
-    setNodeRef(node);
-    setDropRef(node);
     containerRef.current = node;
+    // attach to sortable/droppable only if present
+    if (setNodeRefSortable) setNodeRefSortable(node);
+    if (setDropRef) setDropRef(node);
   };
 
   const onMouseDown = (side, e) => {
     e.stopPropagation();
     e.preventDefault();
     if (!containerRef.current) return;
-    resizing.current = {
-      side,
-      startX: e.clientX,
-      startW: containerRef.current.offsetWidth,
-    };
+    // resize handled via DOM, idem qu'avant
+    const startX = e.clientX;
+    const startW = containerRef.current.offsetWidth;
+    function onMouseMove(ev) {
+      const delta = ev.clientX - startX;
+      const rawW = side === 'right' ? startW + delta : startW - delta;
+      const minW = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--section-min'),
+        10,
+      );
+      const maxW = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--section-max'),
+        10,
+      );
+      const clamped = Math.min(maxW, Math.max(minW, rawW));
+      containerRef.current.style.minWidth = `${clamped}px`;
+      containerRef.current.style.maxWidth = `${clamped}px`;
+    }
+    function onMouseUp() {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    }
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  const onMouseMove = (e) => {
-    if (!resizing.current || !containerRef.current) return;
-    const { side, startX, startW } = resizing.current;
-    const delta = e.clientX - startX;
-    const rawW = side === 'right' ? startW + delta : startW - delta;
-
-    const minW = parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--section-min'),
-      10,
-    );
-    const maxW = parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--section-max'),
-      10,
-    );
-    const clamped = Math.min(maxW, Math.max(minW, rawW));
-
-    // Au lieu de setWidth(clamped) :
-    containerRef.current.style.minWidth = `${clamped}px`;
-    containerRef.current.style.maxWidth = `${clamped}px`;
-  };
-
-  const onMouseUp = () => {
-    resizing.current = null;
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', onMouseUp);
-  };
+  const isEmpty = type === 'empty';
 
   return (
     <div
@@ -87,41 +94,44 @@ export default function SectionContainer({
         isEmpty && 'section-placeholder',
         isEmpty && 'empty',
         isOver && 'droppable-over',
+        readOnly && 'read-only',
       ]
         .filter(Boolean)
         .join(' ')}
       style={{
-        transform: CSS.Transform.toString(transform),
+        transform: transform ? CSS.Transform.toString(transform) : undefined,
         transition,
       }}
     >
-      {/* poignées de resize */}
+      {/* poignées de resize (toujours disponibles en lecture seule) */}
       <div className="section-handle left" onMouseDown={(e) => onMouseDown('left', e)} />
       <div className="section-handle right" onMouseDown={(e) => onMouseDown('right', e)} />
 
       <div
         className="section-top"
-        onClick={() => onToggle(id)}
+        onClick={() => onToggle && onToggle(id)}
         onPointerDown={(e) => e.stopPropagation()}
       />
       <div className="section-parchment">
         <header
           className="section-header"
-          onClick={() => onToggle(id)}
+          onClick={() => onToggle && onToggle(id)}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <span
-            className="drag-handle"
-            {...listeners}
-            {...attributes}
-            title="Glisser pour déplacer"
-          >
-            ⠿
-          </span>
+          {!readOnly && (
+            <span
+              className="drag-handle"
+              {...listeners}
+              {...attributes}
+              title="Glisser pour déplacer"
+            >
+              ⠿
+            </span>
+          )}
 
           <h5>{type}</h5>
           <div className="controls">
-            {onEdit && (
+            {!readOnly && onEdit && (
               <button
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
@@ -133,7 +143,7 @@ export default function SectionContainer({
                 ✎
               </button>
             )}
-            {onDelete && (
+            {!readOnly && onDelete && (
               <button
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
@@ -153,7 +163,7 @@ export default function SectionContainer({
       </div>
       <div
         className="section-bottom"
-        onClick={() => onToggle(id)}
+        onClick={() => onToggle && onToggle(id)}
         onPointerDown={(e) => e.stopPropagation()}
       />
     </div>
@@ -164,15 +174,18 @@ SectionContainer.propTypes = {
   id: PropTypes.string.isRequired,
   type: PropTypes.string.isRequired,
   collapsed: PropTypes.bool,
-  onToggle: PropTypes.func.isRequired,
+  onToggle: PropTypes.func,
   onEdit: PropTypes.func,
   onDelete: PropTypes.func,
   children: PropTypes.node,
+  readOnly: PropTypes.bool,
 };
 
 SectionContainer.defaultProps = {
   collapsed: false,
+  onToggle: null,
   onEdit: null,
   onDelete: null,
   children: null,
+  readOnly: false,
 };

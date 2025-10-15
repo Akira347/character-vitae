@@ -1,0 +1,14 @@
+.feature-card {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
+}
+
+.feature-card .card-title {
+  color: #111;
+}
+
+.lead.text-muted {
+  color: #555 !important;
+}
