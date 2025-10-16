@@ -1,4 +1,5 @@
 <?php
+
 // src/Security/UserChecker.php
 declare(strict_types=1);
 

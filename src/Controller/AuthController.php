@@ -179,10 +179,9 @@ class AuthController extends AbstractController
     }
 
     /**
-     * Resend user confirmation email
+     * Resend user confirmation email.
      *
      * POST /api/resend-confirmation
-     *
      */
     #[Route('/resend-confirmation', name: 'resend_confirmation', methods: ['POST'])]
     public function resendConfirmation(Request $request): JsonResponse
@@ -194,7 +193,7 @@ class AuthController extends AbstractController
         }
 
         $rawEmail = $data['email'] ?? null;
-        $email = \is_scalar($rawEmail) ? trim((string) $rawEmail) : null;
+        $email = \is_scalar($rawEmail) ? \trim((string) $rawEmail) : null;
         if (!$email) {
             return $this->json(['error' => 'Missing email'], Response::HTTP_BAD_REQUEST);
         }
@@ -213,13 +212,13 @@ class AuthController extends AbstractController
         }
 
         // regen token
-        $token = bin2hex(random_bytes(16));
+        $token = \bin2hex(\random_bytes(16));
         $user->setConfirmationToken($token);
         $this->em->flush();
 
         // send email (comme dans register)
         try {
-            $confirmUrl = rtrim($this->frontendUrl, '/').'/confirm?token='.urlencode($token);
+            $confirmUrl = \rtrim($this->frontendUrl, '/').'/confirm?token='.\urlencode($token);
             $emailMessage = (new Email())
                 ->from('noreply@example.com')
                 ->to($user->getEmail())

@@ -1,13 +1,54 @@
 // src/contexts/AuthContext.jsx
-import React, { createContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useEffect, useState, useCallback, useRef } from 'react';
 
 export const AuthContext = createContext(null);
 const TOKEN_KEY = 'cv_token';
+
+function parseJwt(token) {
+  try {
+    const payload = token.split('.')[1];
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(decodeURIComponent(escape(json)));
+  } catch {
+    return null;
+  }
+}
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
+  const logoutTimerRef = useRef(null);
+
+  const clearLogoutTimer = () => {
+    if (logoutTimerRef.current) {
+      clearTimeout(logoutTimerRef.current);
+      logoutTimerRef.current = null;
+    }
+  };
+
+  const scheduleAutoLogout = (tok) => {
+    clearLogoutTimer();
+    if (!tok) return;
+    const payload = parseJwt(tok);
+    if (payload && payload.exp) {
+      const expiresAt = payload.exp * 1000;
+      const now = Date.now();
+      const ms = expiresAt - now;
+      // schedule a little earlier (10s before) to be safe
+      const delay = Math.max(0, ms - 10000);
+      if (delay <= 0) {
+        // token already expired or about to expire -> immediate logout
+        window.dispatchEvent(new CustomEvent('session-expired'));
+        logout();
+      } else {
+        logoutTimerRef.current = setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('session-expired'));
+          logout();
+        }, delay);
+      }
+    }
+  };
 
   const fetchMe = useCallback(
     async (t) => {
@@ -20,16 +61,19 @@ export function AuthProvider({ children }) {
       try {
         const resp = await fetch('/api/me', { headers: { Authorization: `Bearer ${current}` } });
         if (resp.status === 401) {
+          // token invalide / expiré -> cleanup + signaler
           localStorage.removeItem(TOKEN_KEY);
           setToken(null);
           setUser(null);
+          window.dispatchEvent(new CustomEvent('session-expired'));
           return;
         }
         if (!resp.ok) {
           setUser(null);
           return;
         }
-        setUser(await resp.json());
+        const json = await resp.json();
+        setUser(json);
       } catch (e) {
         setUser(null);
       }
@@ -38,7 +82,15 @@ export function AuthProvider({ children }) {
   );
 
   useEffect(() => {
-    if (token) fetchMe(token);
+    if (token) {
+      scheduleAutoLogout(token);
+      fetchMe(token);
+    } else {
+      clearLogoutTimer();
+      setUser(null);
+    }
+    // cleanup on unmount
+    return () => clearLogoutTimer();
   }, [token, fetchMe]);
 
   const login = async ({ username, password }) => {
@@ -57,15 +109,15 @@ export function AuthProvider({ children }) {
         json = null;
       }
 
-      // If OK and token provided
       if (resp.ok && json && json.token) {
         localStorage.setItem(TOKEN_KEY, json.token);
         setToken(json.token);
+        // schedule auto logout based on token exp
+        scheduleAutoLogout(json.token);
         await fetchMe(json.token);
         return { ok: true };
       }
 
-      // If server returns a JSON message indicating not confirmed, set flag
       const unconfirmed =
         resp.status === 403 ||
         (json &&
@@ -96,6 +148,7 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
+    clearLogoutTimer();
     setToken(null);
     setUser(null);
   };

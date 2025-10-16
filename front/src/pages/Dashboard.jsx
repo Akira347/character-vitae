@@ -30,6 +30,7 @@ export default function Dashboard({
   characterId = null,
   initialCharacter = null,
   readOnly = false,
+  demoOnlyAvatar = false,
 }) {
   const { token } = useContext(AuthContext) || {};
   const TOTAL_SLOTS = 15;
@@ -283,34 +284,43 @@ export default function Dashboard({
     ));
 
   // If readOnly: render a static layout without DnD wrappers
+  // If readOnly: render a static layout without DnD wrappers
   if (readOnly) {
     return (
       <div className="dashboard-readonly">
         <Row className="gy-4">
           <Col xs={12} md={3} lg={2}>
             <div className="section-sidebar">
-              <div className="tab-switcher">
-                <button
-                  className={activeTab === 'sections' ? 'active' : ''}
-                  onClick={() => setActiveTab('sections')}
-                >
-                  Sections
-                </button>
-                <button
-                  className={activeTab === 'avatar' ? 'active' : ''}
-                  onClick={() => setActiveTab('avatar')}
-                >
-                  Avatar & Infos
-                </button>
-              </div>
-
-              <div className="tab-content">
-                {activeTab === 'sections' ? (
-                  <div style={{ padding: 10 }}>Aperçu — lecture seule</div>
-                ) : (
+              {/* Si demoOnlyAvatar : on affiche directement AvatarInfoPanel sans tab-switcher */}
+              {demoOnlyAvatar ? (
+                <div style={{ padding: 10 }}>
                   <AvatarInfoPanel data={avatarData} onEditAvatar={() => {}} />
-                )}
-              </div>
+                </div>
+              ) : (
+                <>
+                  <div className="tab-switcher">
+                    <button
+                      className={activeTab === 'sections' ? 'active' : ''}
+                      onClick={() => setActiveTab('sections')}
+                    >
+                      Sections
+                    </button>
+                    <button
+                      className={activeTab === 'avatar' ? 'active' : ''}
+                      onClick={() => setActiveTab('avatar')}
+                    >
+                      Avatar & Infos
+                    </button>
+                  </div>
+                  <div className="tab-content">
+                    {activeTab === 'sections' ? (
+                      <div style={{ padding: 10 }}>Aperçu — lecture seule</div>
+                    ) : (
+                      <AvatarInfoPanel data={avatarData} onEditAvatar={() => {}} />
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </Col>
 

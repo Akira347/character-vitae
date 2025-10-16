@@ -5,9 +5,6 @@ import { useSortable } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
-/**
- * Conteneur d’une section du CV (drag, resize, collapse, edit, delete).
- */
 export default function SectionContainer({
   id,
   type,
@@ -19,11 +16,13 @@ export default function SectionContainer({
   children,
   readOnly,
 }) {
+  // Hooks doivent être appelés TOUJOURS — mais on n'appliquera pas les listeners en readOnly
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
   const containerRef = useRef(null);
   const resizing = useRef(null);
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id });
   const isEmpty = type === 'empty';
+
   const rootRef = (node) => {
     setNodeRef(node);
     setDropRef(node);
@@ -31,6 +30,7 @@ export default function SectionContainer({
   };
 
   const onMouseDown = (side, e) => {
+    if (readOnly) return;
     e.stopPropagation();
     e.preventDefault();
     if (!containerRef.current) return;
@@ -59,18 +59,17 @@ export default function SectionContainer({
     );
     const clamped = Math.min(maxW, Math.max(minW, rawW));
 
-    // appliquer largeur fixe
     containerRef.current.style.minWidth = `${clamped}px`;
     containerRef.current.style.maxWidth = `${clamped}px`;
   };
 
   const onMouseUp = () => {
+    if (readOnly) return;
     resizing.current = null;
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
   };
 
-  // largeur fournie par le backend/template
   const widthStyle =
     typeof width === 'number' ? { minWidth: `${width}px`, maxWidth: `${width}px` } : {};
 
@@ -92,9 +91,13 @@ export default function SectionContainer({
         transition,
       }}
     >
-      {/* poignées de resize */}
-      <div className="section-handle left" onMouseDown={(e) => onMouseDown('left', e)} />
-      <div className="section-handle right" onMouseDown={(e) => onMouseDown('right', e)} />
+      {/* poignées de resize — masquées en readOnly */}
+      {!readOnly && (
+        <>
+          <div className="section-handle left" onMouseDown={(e) => onMouseDown('left', e)} />
+          <div className="section-handle right" onMouseDown={(e) => onMouseDown('right', e)} />
+        </>
+      )}
 
       <div
         className="section-top"
@@ -107,14 +110,15 @@ export default function SectionContainer({
           onClick={() => onToggle(id)}
           onPointerDown={(e) => e.stopPropagation()}
         >
+          {/* drag handle: n'appliquer listeners/attributes que si pas readOnly */}
           <span
             className="drag-handle"
-            {...listeners}
-            {...attributes}
-            title="Glisser pour déplacer"
+            title={readOnly ? '' : 'Glisser pour déplacer'}
+            {...(readOnly ? {} : { ...listeners })}
+            {...(readOnly ? {} : { ...attributes })}
             style={{ cursor: readOnly ? 'default' : undefined }}
           >
-            ⠿
+            {!readOnly ? '⠿' : null}
           </span>
 
           <h5>{type}</h5>

@@ -140,6 +140,25 @@ export default function Header() {
   }, [user, token, selectedCharId, navigate, location.pathname]);
 
   useEffect(() => {
+    const onSessionExpired = () => {
+      window.dispatchEvent(
+        new CustomEvent('notify', {
+          detail: {
+            message: 'Session expirée — reconnectez-vous',
+            variant: 'warning',
+            timeout: 5000,
+          },
+        }),
+      );
+      // optionally open login modal:
+      setView('login');
+      setShow(true);
+    };
+    window.addEventListener('session-expired', onSessionExpired);
+    return () => window.removeEventListener('session-expired', onSessionExpired);
+  }, []);
+
+  useEffect(() => {
     loadCharacters();
   }, [loadCharacters]);
 

@@ -41,8 +41,6 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
     prevShowRef.current = show;
   }, [show, mode, initialData, templateList]);
 
-  const selectedTemplate = templateList.find((t) => t.key === templateKey) ?? null;
-
   const getServerId = () => {
     if (!initialData) return null;
     if (initialData.id) return initialData.id;
@@ -81,6 +79,7 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
         templateType: templateKey,
       };
 
+      // IMPORTANT: appeler le controller personnalisé qui setOwner -> /apip/characters
       const url =
         mode === 'edit' && getServerId() ? `/apip/characters/${getServerId()}` : '/apip/characters';
       const method = mode === 'edit' && getServerId() ? 'PUT' : 'POST';
@@ -102,14 +101,12 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
       if (res.status === 201 || (res.ok && method === 'PUT')) {
         onHide?.();
 
-        // resolve id
         const createdId =
           json?.id ?? json?._id ?? (json?.['@id'] ? json['@id'].split('/').pop() : getServerId());
 
-        // notify other parts (Header listens)
+        // notify other components (Header listens)
         window.dispatchEvent(new CustomEvent('character-created', { detail: { id: createdId } }));
 
-        // navigate to the new character edit page
         if (createdId) {
           navigate(`/dashboard/characters/${createdId}?created=1`);
         } else {
@@ -258,7 +255,7 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
                   border: '1px solid rgba(0,0,0,0.08)',
                 }}
               >
-                {selectedTemplate?.thumb ? (
+                {templateList.find((x) => x.key === templateKey)?.thumb ? (
                   <div
                     style={{
                       width: '100%',
@@ -269,8 +266,8 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
                     }}
                   >
                     <img
-                      src={selectedTemplate.thumb}
-                      alt={`Aperçu ${selectedTemplate.label}`}
+                      src={templateList.find((x) => x.key === templateKey).thumb}
+                      alt={`Aperçu`}
                       style={{ width: '100%', height: 'auto', maxHeight: 720, objectFit: 'cover' }}
                     />
                     <div className="d-flex justify-content-center mt-2">
@@ -309,8 +306,7 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
             >
               {submitting ? (
                 <>
-                  <Spinner animation="border" size="sm" />
-                  &nbsp;Enregistrement...
+                  <Spinner animation="border" size="sm" /> &nbsp;Enregistrement...
                 </>
               ) : mode === 'edit' ? (
                 'Enregistrer les modifications'
@@ -324,14 +320,16 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
 
       <Modal show={previewModalOpen} onHide={() => setPreviewModalOpen(false)} size="xl" centered>
         <Modal.Header closeButton>
-          <Modal.Title>Aperçu — {selectedTemplate?.label ?? ''}</Modal.Title>
+          <Modal.Title>
+            Aperçu — {templateList.find((x) => x.key === templateKey)?.label ?? ''}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ textAlign: 'center' }}>
-          {selectedTemplate?.thumb ? (
+          {templateList.find((x) => x.key === templateKey)?.thumb ? (
             <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto' }}>
               <img
-                src={selectedTemplate.thumb}
-                alt={`Aperçu grand ${selectedTemplate?.label}`}
+                src={templateList.find((x) => x.key === templateKey).thumb}
+                alt="Aperçu"
                 style={{ width: '100%', height: 'auto', maxHeight: 720, objectFit: 'cover' }}
               />
             </div>
@@ -346,7 +344,7 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
           <Button
             variant="primary"
             onClick={() => {
-              setTemplateKey(selectedTemplate?.key ?? 'blank');
+              setTemplateKey(templateKey);
               setPreviewModalOpen(false);
             }}
           >

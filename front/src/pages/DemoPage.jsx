@@ -50,7 +50,7 @@ export default function DemoPage() {
   return (
     <Container fluid className="py-4">
       <h2>Démo (lecture seule)</h2>
-      <Dashboard initialCharacter={demo} readOnly />
+      <Dashboard initialCharacter={demo} readOnly demoOnlyAvatar />
     </Container>
   );
 }

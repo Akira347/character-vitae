@@ -1,4 +1,6 @@
 <?php
+
+// src/DataPersister/CharacterOwnerDataPersister.php
 declare(strict_types=1);
 
 namespace App\DataPersister;
@@ -6,12 +8,17 @@ namespace App\DataPersister;
 use ApiPlatform\Core\DataPersister\ContextAwareDataPersisterInterface;
 use App\Entity\Character;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Security\Core\Security;
 
 final class CharacterOwnerDataPersister implements ContextAwareDataPersisterInterface
 {
-    public function __construct(private EntityManagerInterface $em, private Security $security)
-    {
+    public function __construct(
+        private ContextAwareDataPersisterInterface $decorated,
+        private EntityManagerInterface $em,
+        private Security $security,
+        private LoggerInterface $logger,
+    ) {
     }
 
     public function supports($data, array $context = []): bool
@@ -19,17 +26,30 @@ final class CharacterOwnerDataPersister implements ContextAwareDataPersisterInte
         return $data instanceof Character;
     }
 
-    /**
-     * @param Character $data
-     */
     public function persist($data, array $context = [])
     {
-        // Si création et owner manquant, lier l'user courant
-        if (null === $data->getOwner()) {
-            $user = $this->security->getUser();
-            if ($user !== null) {
-                $data->setOwner($user);
+        /** @var Character $data */
+        $user = $this->security->getUser();
+        if (!$user) {
+            throw new \RuntimeException('Unauthenticated');
+        }
+
+        if ($data->getOwner() === null) {
+            $data->setOwner($user);
+        } else {
+            // optionally ensure owner matches current user on update
+            if ($data->getOwner()->getId() !== $user->getId()) {
+                $this->logger->warning('Attempt to set different owner on Character', [
+                    'user' => $user->getId(),
+                    'owner' => $data->getOwner()->getId(),
+                ]);
+                throw new \RuntimeException('Unauthorized owner change');
             }
+        }
+
+        // delegate actual persistence to decorated persister or persist directly
+        if ($this->decorated) {
+            return $this->decorated->persist($data, $context);
         }
 
         $this->em->persist($data);
@@ -40,6 +60,10 @@ final class CharacterOwnerDataPersister implements ContextAwareDataPersisterInte
 
     public function remove($data, array $context = [])
     {
+        if ($this->decorated) {
+            return $this->decorated->remove($data, $context);
+        }
+
         $this->em->remove($data);
         $this->em->flush();
     }

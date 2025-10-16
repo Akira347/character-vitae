@@ -46,13 +46,13 @@ class CharacterControllerTest extends WebTestCase
         $content = (string) $client->getResponse()->getContent();
         $data = \json_decode($content, true);
 
-        /** @var array<string,mixed> $data */
+        /* @var array<string,mixed> $data */
         $this->assertIsArray($data);
         $this->assertArrayHasKey('token', $data);
 
         // extraire le token de façon sûre (vérifier le type avant le cast)
         $token = '';
-        if (array_key_exists('token', $data) && (is_scalar($data['token']) || $data['token'] === null)) {
+        if (\array_key_exists('token', $data) && (\is_scalar($data['token']) || $data['token'] === null)) {
             $token = (string) ($data['token'] ?? '');
         }
 
@@ -65,7 +65,7 @@ class CharacterControllerTest extends WebTestCase
 
         $client->request('POST', '/api/characters', [], [], [
             'CONTENT_TYPE' => 'application/json',
-            'HTTP_AUTHORIZATION' => 'Bearer ' . $token,
+            'HTTP_AUTHORIZATION' => 'Bearer '.$token,
         ], $payload2);
 
         $this->assertEquals(201, $client->getResponse()->getStatusCode());

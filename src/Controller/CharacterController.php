@@ -115,8 +115,6 @@ class CharacterController extends AbstractController
      *
      * Accepts mixed (templates or provided payload may be loosely typed).
      *
-     * @param mixed $raw
-     *
      * @return array<string,mixed>
      */
     private function normalizeLayoutForEntity(mixed $raw): array
@@ -186,7 +184,7 @@ class CharacterController extends AbstractController
         }
 
         $projectDir = $param;
-        $path = $projectDir . '/data/templates.json';
+        $path = $projectDir.'/data/templates.json';
 
         if (!\file_exists($path)) {
             $this->logger->warning('templates.json not found', ['path' => $path]);
