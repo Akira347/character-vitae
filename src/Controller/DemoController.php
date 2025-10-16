@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Entity\Character;
+use App\Entity\User;
+use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -11,54 +14,56 @@ use Symfony\Component\Routing\Annotation\Route;
 
 final class DemoController extends AbstractController
 {
-    public function __construct(private LoggerInterface $logger)
-    {
+    public function __construct(
+        private LoggerInterface $logger,
+        private EntityManagerInterface $em,
+    ) {
     }
 
     /**
      * Endpoint public pour la démo (lecture seule).
      *
-     * Utilise un chemin qui n'entre pas en collision avec ApiPlatform.
+     * Recherche l'utilisateur de démonstration et renvoie sa fiche "Demo".
      */
     #[Route('/apip/character/demo', name: 'apip_demo_character', methods: ['GET'])]
     public function demoCharacter(): JsonResponse
     {
-        $param = $this->getParameter('kernel.project_dir');
-
-        // si kernel.project_dir n'est pas une string, retourner le fallback embarqué
-        if (!\is_string($param)) {
-            $this->logger->warning('kernel.project_dir parameter is not a string', ['value' => $param]);
-            return $this->json($this->embeddedDemo());
-        }
-
-        $path = $param . '/data/demo-character.json';
-
-        if (!\file_exists($path)) {
-            $this->logger->warning('Demo character file not found', ['path' => $path]);
-            return $this->json($this->embeddedDemo());
-        }
-
-        $content = \file_get_contents($path);
-        if ($content === false) {
-            $this->logger->warning('Failed to read demo file', ['path' => $path]);
-            return $this->json($this->embeddedDemo());
-        }
+        // email de la demo — configurable si tu veux l'extraire d'un paramètre d'env
+        $demoEmail = 'e.fonquernie@gmail.com';
 
         try {
-            $decoded = \json_decode($content, true, 512, \JSON_THROW_ON_ERROR);
-        } catch (\JsonException $e) {
-            $this->logger->warning('Invalid demo JSON', ['exception' => $e->getMessage()]);
-            return $this->json($this->embeddedDemo());
+            /** @var User|null $user */
+            $user = $this->em->getRepository(User::class)->findOneBy(['email' => $demoEmail]);
+
+            if ($user instanceof User) {
+                // prefer title 'Demo' if exists
+                $character = $this->em->getRepository(Character::class)->findOneBy(['owner' => $user, 'title' => 'Demo']);
+
+                if (!$character) {
+                    // fallback : first character of that user
+                    $character = $this->em->getRepository(Character::class)->findOneBy(['owner' => $user]);
+                }
+
+                if ($character instanceof Character) {
+                    return $this->json([
+                        'id' => $character->getId(),
+                        'title' => $character->getTitle(),
+                        'description' => $character->getDescription(),
+                        'templateType' => $character->getTemplateType(),
+                        'layout' => $character->getLayout() ?? ['rows' => []],
+                        'avatar' => $character->getAvatar(),
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->logger->warning('Demo lookup failed', ['exception' => $e->getMessage()]);
+            // fall through to embedded demo
         }
 
-        return $this->json($decoded);
+        // Fallback embarqué
+        return $this->json($this->embeddedDemo());
     }
 
-    /**
-     * Demo embarquée en fallback (forme attendue par le front).
-     *
-     * @return array<string,mixed>
-     */
     private function embeddedDemo(): array
     {
         return [
@@ -72,11 +77,6 @@ final class DemoController extends AbstractController
                         ['id' => 's1', 'type' => 'Identité', 'width' => 300, 'content' => [], 'isCollapsed' => true],
                         ['id' => 's2', 'type' => 'Contact', 'width' => 300, 'content' => [], 'isCollapsed' => true],
                         ['id' => 's3', 'type' => 'Lore', 'width' => 320, 'content' => [], 'isCollapsed' => true],
-                    ],
-                    [
-                        ['id' => 's4', 'type' => 'Quêtes', 'width' => 480, 'content' => [], 'isCollapsed' => true],
-                        ['id' => 's5', 'type' => 'Talents', 'width' => 240, 'content' => [], 'isCollapsed' => true],
-                        ['id' => 's6', 'type' => 'HautsFaits', 'width' => 240, 'content' => [], 'isCollapsed' => true],
                     ],
                 ],
             ],

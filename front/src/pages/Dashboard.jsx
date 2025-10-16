@@ -1,3 +1,4 @@
+// src/pages/Dashboard.jsx
 import '../styles/Dashboard.css';
 
 import React, { useState, useEffect, useContext, useCallback } from 'react';
@@ -33,6 +34,10 @@ export default function Dashboard({
   const { token } = useContext(AuthContext) || {};
   const TOTAL_SLOTS = 15;
 
+  /**
+   * Convertit une "layout" (format legacy qui contient rows) en tableau plat
+   * d'objets section tel que le Dashboard s'attend.
+   */
   const parseLayoutToSections = useCallback((layout) => {
     if (!layout || !Array.isArray(layout.rows)) {
       return Array.from({ length: TOTAL_SLOTS }).map((_, i) => ({
@@ -89,7 +94,66 @@ export default function Dashboard({
     return out;
   }, []);
 
+  /**
+   * --- NOUVEAU ---
+   * Convertit une collection de Section (backend entity) en tableau utilisable
+   * par le Dashboard (même shape que parseLayoutToSections produce).
+   *
+   * Chaque item backend attend : { id, serverId, type, content, width, position, isCollapsed }
+   * On ordonne par position croissant (si présent), sinon par id.
+   */
+  const buildSectionsFromCollection = useCallback((sectionsCollection) => {
+    if (!Array.isArray(sectionsCollection) || sectionsCollection.length === 0) {
+      return Array.from({ length: TOTAL_SLOTS }).map((_, i) => ({
+        id: `empty-${i}`,
+        type: 'empty',
+        content: null,
+        collapsed: true,
+      }));
+    }
+
+    // copy and sort by position if provided
+    const copy = [...sectionsCollection].sort((a, b) => {
+      const pa = typeof a.position === 'number' ? a.position : 0;
+      const pb = typeof b.position === 'number' ? b.position : 0;
+      if (pa !== pb) return pa - pb;
+      // fallback stable ordering by id
+      if (a.id && b.id) return Number(a.id) - Number(b.id);
+      return 0;
+    });
+
+    const out = [];
+    for (let i = 0; i < copy.length && out.length < TOTAL_SLOTS; i++) {
+      const s = copy[i] ?? {};
+      const serverId = s.serverId ?? s.id ?? `s-${i + 1}`;
+      const id = `sec-${String(serverId)}`;
+      out.push({
+        id,
+        type: typeof s.type === 'string' ? s.type : 'empty',
+        content: s.content ?? (s.type === 'empty' ? null : []),
+        collapsed: !!(s.isCollapsed ?? true),
+        width: typeof s.width === 'number' ? s.width : s.width ? Number(s.width) : undefined,
+        originalId: serverId,
+        // keep backend id for later reference if needed
+        backendId: s.id ?? null,
+        position: typeof s.position === 'number' ? s.position : null,
+      });
+    }
+
+    // pad with empty slots up to TOTAL_SLOTS
+    while (out.length < TOTAL_SLOTS) {
+      out.push({ id: `empty-${out.length}`, type: 'empty', content: null, collapsed: true });
+    }
+
+    return out;
+  }, []);
+
+  // initial sections state: prefer initialCharacter.sections (backend Section entities),
+  // else fallback to initialCharacter.layout (legacy).
   const [sections, setSectionsRaw] = useState(() => {
+    if (initialCharacter?.sections && Array.isArray(initialCharacter.sections)) {
+      return buildSectionsFromCollection(initialCharacter.sections);
+    }
     if (initialCharacter?.layout) {
       return parseLayoutToSections(initialCharacter.layout);
     }
@@ -102,10 +166,14 @@ export default function Dashboard({
   });
 
   useEffect(() => {
+    if (initialCharacter?.sections && Array.isArray(initialCharacter.sections)) {
+      setSectionsRaw(buildSectionsFromCollection(initialCharacter.sections));
+      return;
+    }
     if (initialCharacter?.layout) {
       setSectionsRaw(parseLayoutToSections(initialCharacter.layout));
     }
-  }, [initialCharacter, parseLayoutToSections]);
+  }, [initialCharacter, parseLayoutToSections, buildSectionsFromCollection]);
 
   const [isDirty, setIsDirty] = useState(false);
   useUnsavedWarning(isDirty, 'Modifications non sauvegardées — quitter sans sauvegarder ?');
@@ -188,6 +256,9 @@ export default function Dashboard({
         key={sec.id ?? `empty-${idx}`}
         id={sec.id ?? `empty-${idx}`}
         type={sec.type}
+        width={
+          typeof sec.width === 'number' ? sec.width : sec.width ? Number(sec.width) : undefined
+        }
         onToggle={toggleCollapse}
         onEdit={
           readOnly

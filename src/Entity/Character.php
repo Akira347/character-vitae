@@ -6,6 +6,12 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Delete;
 use App\Repository\CharacterRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -15,10 +21,14 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ORM\Table(name: 'character')]
 #[ApiResource(
     normalizationContext: ['groups' => ['character:read']],
-    denormalizationContext: ['groups' => ['character:write']],
-    // operations par défaut : GET collection, POST collection, GET item, PUT, DELETE
-    // tu peux personnaliser security ici si besoin
+    denormalizationContext: ['groups' => ['character:write']]
 )]
+#[GetCollection(security: "is_granted('PUBLIC_ACCESS')")]
+#[Post(security: "is_granted('ROLE_USER')")]
+#[Get(security: "is_granted('PUBLIC_ACCESS')")]
+#[Put(security: "is_granted('ROLE_USER')")]
+#[Patch(security: "is_granted('ROLE_USER')")]
+#[Delete(security: "is_granted('ROLE_USER')")]
 class Character
 {
     #[ORM\Id]
@@ -123,6 +133,11 @@ class Character
 
         return $this;
     }
+
+    /**
+     * @ORM\OneToMany(targetEntity=Section::class, mappedBy="character", cascade={"persist","remove"}, orphanRemoval=true)
+     */
+    private $sections;
 
     /**
      * Accepts normalized layout array.

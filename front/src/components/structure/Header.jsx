@@ -23,7 +23,7 @@ import '../../styles/header.css';
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, login, logout, token } = useContext(AuthContext) || {};
+  const { user, login, logout, token, resendConfirmation } = useContext(AuthContext) || {};
 
   // login/signup modal
   const [show, setShow] = useState(false);
@@ -33,6 +33,7 @@ export default function Header() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState(null);
+  const [loginUnconfirmed, setLoginUnconfirmed] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [signupSuccessMessage, setSignupSuccessMessage] = useState(null);
 
@@ -106,10 +107,26 @@ export default function Header() {
         .filter((x) => x.id !== null && x.id !== undefined);
 
       setCharacters(normalized);
-      if (normalized.length > 0 && !selectedCharId) {
-        setSelectedCharId(normalized[0].id);
-      } else if (normalized.length === 0) {
+
+      // choose selected id: prefer last used in localStorage, else first available
+      const lastSelected = localStorage.getItem('cv_selected_char');
+      let toSelect = null;
+      if (normalized.length > 0) {
+        if (lastSelected && normalized.find((n) => String(n.id) === String(lastSelected))) {
+          toSelect = String(lastSelected);
+        } else {
+          toSelect = String(normalized[0].id);
+        }
+        setSelectedCharId(toSelect);
+        // navigate to the selected character route (only if we're not already there)
+        if (!location.pathname.startsWith(`/dashboard/characters/${toSelect}`)) {
+          navigate(`/dashboard/characters/${toSelect}`);
+        }
+        // persist last selected so next session reopens it
+        localStorage.setItem('cv_selected_char', String(toSelect));
+      } else {
         setSelectedCharId(null);
+        localStorage.removeItem('cv_selected_char');
       }
 
       return normalized;
@@ -120,7 +137,7 @@ export default function Header() {
     } finally {
       setLoadingChars(false);
     }
-  }, [user, token, selectedCharId]);
+  }, [user, token, selectedCharId, navigate, location.pathname]);
 
   useEffect(() => {
     loadCharacters();
@@ -219,6 +236,8 @@ export default function Header() {
         navigate('/dashboard');
         setTimeout(() => loadCharacters(), 200);
       } else {
+        // detect unconfirmed flag returned by AuthContext.login
+        setLoginUnconfirmed(Boolean(result.unconfirmed));
         let msg = 'E-mail ou mot de passe incorrect';
         if (result.body) {
           const backendMsg =
@@ -344,25 +363,28 @@ export default function Header() {
                 <div className="me-2">
                   {loadingChars ? (
                     <Spinner animation="border" size="sm" />
-                  ) : (
+                  ) : characters && characters.length > 0 ? (
                     <Form.Select
                       size="sm"
                       value={selectedCharId ?? ''}
-                      onChange={onSelectCharacter}
-                      aria-label="Choisir fiche"
-                      style={{
-                        minWidth: 200,
-                        background: characters && characters.length ? undefined : '#ffffff',
+                      onChange={(ev) => {
+                        const id = ev.target.value;
+                        setSelectedCharId(id);
+                        if (id) {
+                          localStorage.setItem('cv_selected_char', String(id));
+                          navigate(`/dashboard/characters/${id}`);
+                        }
                       }}
+                      aria-label="Choisir fiche"
+                      style={{ minWidth: 200 }}
                     >
-                      <option value="">{charsError ? 'Erreur chargement' : 'Aucune fiche'}</option>
                       {characters.map((c) => (
                         <option key={String(c.id)} value={String(c.id)}>
                           {c.title ?? `#${c.id}`}
                         </option>
                       ))}
                     </Form.Select>
-                  )}
+                  ) : null}
                 </div>
 
                 {characters.length > 0 && (
@@ -430,7 +452,39 @@ export default function Header() {
           {view === 'login' ? (
             <>
               {signupSuccessMessage && <Alert variant="success">{signupSuccessMessage}</Alert>}
-              {loginError && <Alert variant="danger">{loginError}</Alert>}
+              {loginError && (
+                <Alert variant="danger">
+                  <div>{loginError}</div>
+                  {loginUnconfirmed && (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="btn btn-link btn-sm"
+                        onClick={async () => {
+                          const resp = await resendConfirmation(loginEmail);
+                          if (resp && resp.ok) {
+                            setLoginError(null);
+                            // show success temporary message
+                            setInlineNotify({
+                              message: resp.body?.message ?? 'E-mail renvoyé',
+                              variant: 'success',
+                            });
+                            setTimeout(() => setInlineNotify(null), 3500);
+                          } else {
+                            setInlineNotify({
+                              message: 'Impossible de renvoyer l’e-mail',
+                              variant: 'danger',
+                            });
+                            setTimeout(() => setInlineNotify(null), 3500);
+                          }
+                        }}
+                      >
+                        Renvoyer l’e-mail de confirmation
+                      </button>
+                    </div>
+                  )}
+                </Alert>
+              )}
               <Form
                 onSubmit={(e) => {
                   e.preventDefault();

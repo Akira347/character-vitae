@@ -31,6 +31,7 @@ security:
                 #password_path: password
                 success_handler: lexik_jwt_authentication.handler.authentication_success
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
+            user_checker: App\Security\UserChecker
 
         # firewall principal pour l'API : JWT (stateless)
         api:
@@ -38,11 +39,15 @@ security:
             stateless: true
             #provider: app_user_provider
             jwt: ~
+            user_checker: App\Security\UserChecker
 
     access_control:
+        # collection et items de characters publics (lecture)
+        - { path: ^/apip/characters(?:/.*)?$, roles: PUBLIC_ACCESS }
         - { path: ^/apip/character/demo$, roles: PUBLIC_ACCESS }
         - { path: ^/api/register, roles: PUBLIC_ACCESS }
         - { path: ^/api/confirm$, roles: PUBLIC_ACCESS }
+        - { path: ^/api/resend-confirmation$, roles: PUBLIC_ACCESS }
         - { path: ^/api/login, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/apip/docs, roles: PUBLIC_ACCESS }

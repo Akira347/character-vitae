@@ -1,14 +1,15 @@
 // src/components/characters/NewCharacterModal.jsx
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Modal, Button, Form, Row, Col, Image, Alert, Spinner } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
-import { fetchJson } from '../../utils/api';
 import TEMPLATES from '../../data/templates.json';
 
 export default function NewCharacterModal({ show, onHide, mode = 'create', initialData = null }) {
   const { token } = useContext(AuthContext) || {};
+  const navigate = useNavigate();
+
   const templateList = Array.isArray(TEMPLATES) ? TEMPLATES : Object.values(TEMPLATES ?? {});
-  // local state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [templateKey, setTemplateKey] = useState(
@@ -18,12 +19,10 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
   const [error, setError] = useState(null);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
-  // prevShow ref to detect opening transition
   const prevShowRef = useRef(false);
   useEffect(() => {
     const was = prevShowRef.current;
     if (!was && show) {
-      // modal opened: initialize fields from initialData if edit, or reset if create
       if (mode === 'edit' && initialData) {
         setTitle(initialData.title ?? '');
         setDescription(initialData.description ?? '');
@@ -44,6 +43,16 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
 
   const selectedTemplate = templateList.find((t) => t.key === templateKey) ?? null;
 
+  const getServerId = () => {
+    if (!initialData) return null;
+    if (initialData.id) return initialData.id;
+    if (initialData['@id']) {
+      const parts = String(initialData['@id']).split('/');
+      return parts[parts.length - 1] || null;
+    }
+    return null;
+  };
+
   const handleSubmit = async (ev) => {
     ev.preventDefault();
     if (submitting) return;
@@ -63,7 +72,7 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
     try {
       const headers = {
         'Content-Type': 'application/ld+json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Authorization: `Bearer ${token}`,
       };
 
       const body = {
@@ -72,8 +81,12 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
         templateType: templateKey,
       };
 
-      const res = await fetch('/api/characters', {
-        method: 'POST',
+      const url =
+        mode === 'edit' && getServerId() ? `/apip/characters/${getServerId()}` : '/apip/characters';
+      const method = mode === 'edit' && getServerId() ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers,
         body: JSON.stringify(body),
       });
@@ -86,13 +99,19 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
         json = null;
       }
 
-      if (res.status === 201 || res.ok) {
+      if (res.status === 201 || (res.ok && method === 'PUT')) {
         onHide?.();
 
-        // choose id from various possible formats
-        const id = json?.id ?? json?._id ?? (json?.['@id'] ? json['@id'].split('/').pop() : null);
-        if (id) {
-          navigate(`/dashboard/characters/${id}?created=1`);
+        // resolve id
+        const createdId =
+          json?.id ?? json?._id ?? (json?.['@id'] ? json['@id'].split('/').pop() : getServerId());
+
+        // notify other parts (Header listens)
+        window.dispatchEvent(new CustomEvent('character-created', { detail: { id: createdId } }));
+
+        // navigate to the new character edit page
+        if (createdId) {
+          navigate(`/dashboard/characters/${createdId}?created=1`);
         } else {
           navigate('/dashboard');
         }
@@ -105,6 +124,40 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
     } catch (err) {
       console.error('create character', err);
       setError('Erreur réseau ou serveur.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    const sid = getServerId();
+    if (!sid) {
+      setError('Impossible de déterminer l’identifiant du personnage.');
+      return;
+    }
+    if (!window.confirm('Confirmer la suppression de cette fiche ? Cette action est irréversible.'))
+      return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/apip/characters/${sid}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        onHide?.();
+        window.dispatchEvent(new CustomEvent('character-deleted', {}));
+        navigate('/');
+      } else {
+        const text = await res.text();
+        throw new Error(text || `Erreur ${res.status}`);
+      }
+    } catch (err) {
+      console.error('delete character', err);
+      setError('Impossible de supprimer la fiche.');
     } finally {
       setSubmitting(false);
     }
@@ -240,6 +293,11 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
           </Modal.Body>
 
           <Modal.Footer>
+            {mode === 'edit' && (
+              <Button variant="danger" onClick={handleDelete} disabled={submitting}>
+                {submitting ? 'Suppression...' : 'Supprimer'}
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => onHide?.()} disabled={submitting}>
               Annuler
             </Button>

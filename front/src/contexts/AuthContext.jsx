@@ -20,7 +20,6 @@ export function AuthProvider({ children }) {
       try {
         const resp = await fetch('/api/me', { headers: { Authorization: `Bearer ${current}` } });
         if (resp.status === 401) {
-          // token invalide / expiré -> cleanup
           localStorage.removeItem(TOKEN_KEY);
           setToken(null);
           setUser(null);
@@ -58,6 +57,7 @@ export function AuthProvider({ children }) {
         json = null;
       }
 
+      // If OK and token provided
       if (resp.ok && json && json.token) {
         localStorage.setItem(TOKEN_KEY, json.token);
         setToken(json.token);
@@ -65,11 +65,32 @@ export function AuthProvider({ children }) {
         return { ok: true };
       }
 
-      return { ok: false, status: resp.status, body: json || text };
+      // If server returns a JSON message indicating not confirmed, set flag
+      const unconfirmed =
+        resp.status === 403 ||
+        (json &&
+          (json.message || json.error) &&
+          /confirm/i.test(String(json.message || json.error)));
+
+      return { ok: false, status: resp.status, body: json || text, unconfirmed };
     } catch (err) {
       return { ok: false, error: err };
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resendConfirmation = async (email) => {
+    try {
+      const resp = await fetch('/api/resend-confirmation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const json = await resp.json().catch(() => null);
+      return { ok: resp.ok, status: resp.status, body: json };
+    } catch (err) {
+      return { ok: false, error: err };
     }
   };
 
@@ -80,7 +101,9 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, loading, login, logout, fetchMe }}>
+    <AuthContext.Provider
+      value={{ token, user, loading, login, logout, fetchMe, resendConfirmation }}
+    >
       {children}
     </AuthContext.Provider>
   );
