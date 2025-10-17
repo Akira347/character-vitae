@@ -16,6 +16,9 @@ use App\Repository\CharacterRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use App\Entity\Section;
 
 #[ORM\Entity(repositoryClass: CharacterRepository::class)]
 #[ORM\Table(name: 'character')]
@@ -76,9 +79,17 @@ class Character
     #[Groups(['character:read', 'character:write'])]
     private ?array $avatar = null;
 
+    /**
+     * @ORM\OneToMany(targetEntity=Section::class, mappedBy="character", cascade={"persist","remove"}, orphanRemoval=true)
+     *
+     * @var Collection<int,Section>
+     */
+    private Collection $sections;
+
     public function __construct()
     {
         $this->layout = [];
+        $this->sections = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -135,11 +146,6 @@ class Character
     }
 
     /**
-     * @ORM\OneToMany(targetEntity=Section::class, mappedBy="character", cascade={"persist","remove"}, orphanRemoval=true)
-     */
-    private $sections;
-
-    /**
      * Accepts normalized layout array.
      *
      * @return array<string, mixed>
@@ -175,6 +181,36 @@ class Character
     public function setAvatar(?array $avatar): self
     {
         $this->avatar = $avatar;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int,Section>
+     */
+    public function getSections(): Collection
+    {
+        return $this->sections;
+    }
+
+    public function addSection(Section $section): static
+    {
+        if (!$this->sections->contains($section)) {
+            $this->sections->add($section);
+            $section->setCharacter($this);
+        }
+
+        return $this;
+    }
+
+    public function removeSection(Section $section): static
+    {
+        if ($this->sections->contains($section)) {
+            $this->sections->removeElement($section);
+            if ($section->getCharacter() === $this) {
+                $section->setCharacter(null);
+            }
+        }
 
         return $this;
     }

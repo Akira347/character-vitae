@@ -1,5 +1,4 @@
 <?php
-
 // src/Controller/DemoController.php
 declare(strict_types=1);
 
@@ -17,14 +16,19 @@ final class DemoController extends AbstractController
     public function __construct(
         private EntityManagerInterface $em,
         private LoggerInterface $logger,
-        private string $demoEmail,
+        private ?string $demoEmail = null, // nullable : évite les warnings si param non fourni
     ) {
     }
 
     #[Route('/apip/character/demo', name: 'apip_demo_character', methods: ['GET'])]
     public function demoCharacter(): JsonResponse
     {
-        // try to load demo user by email (configurable)
+        // si la config n'est pas renseignée on retourne la demo embarquée
+        if ($this->demoEmail === null || $this->demoEmail === '') {
+            $this->logger->warning('Demo email not configured');
+            return $this->json($this->embeddedDemo());
+        }
+
         $userRepo = $this->em->getRepository(\App\Entity\User::class);
         $characterRepo = $this->em->getRepository(Character::class);
 
@@ -38,24 +42,28 @@ final class DemoController extends AbstractController
             }
 
             if ($demoChar instanceof Character) {
-                // return normalized array (fields used by front)
                 return $this->json([
                     'id' => $demoChar->getId(),
                     'title' => $demoChar->getTitle(),
                     'description' => $demoChar->getDescription(),
                     'templateType' => $demoChar->getTemplateType(),
-                    'layout' => $demoChar->getLayout() ?? ['rows' => []],
+                    // getLayout() renvoie déjà un array (pas de null attendu)
+                    'layout' => $demoChar->getLayout(),
                     'avatar' => $demoChar->getAvatar(),
                 ]);
             }
         }
 
-        // fallback embedded demo
         $this->logger->warning('Demo character not found for email', ['email' => $this->demoEmail]);
 
         return $this->json($this->embeddedDemo());
     }
 
+    /**
+     * Demo embarquée en fallback (forme attendue par le front).
+     *
+     * @return array<string, mixed>
+     */
     private function embeddedDemo(): array
     {
         return [

@@ -30,6 +30,7 @@ class CharacterControllerTest extends WebTestCase
             ->setFirstName('Test')
             ->setLastName('User');
         $user->setPassword(\password_hash('password123', PASSWORD_BCRYPT));
+        $user->setIsConfirmed(true); // <-- important: mark user as confirmed for login
         $em->persist($user);
         $em->flush();
 
@@ -50,7 +51,6 @@ class CharacterControllerTest extends WebTestCase
         $this->assertIsArray($data);
         $this->assertArrayHasKey('token', $data);
 
-        // extraire le token de façon sûre (vérifier le type avant le cast)
         $token = '';
         if (\array_key_exists('token', $data) && (\is_scalar($data['token']) || $data['token'] === null)) {
             $token = (string) ($data['token'] ?? '');
@@ -74,7 +74,7 @@ class CharacterControllerTest extends WebTestCase
         $this->assertIsArray($result);
         $this->assertArrayHasKey('id', $result);
 
-        // cleanup: re-fetch managed entity (évite "Detached entity" si l'instance est détachée)
+        // cleanup
         $userId = $user->getId();
         if ($userId !== null) {
             $persistedUser = $em->find(User::class, $userId);

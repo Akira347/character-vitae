@@ -93,11 +93,18 @@ export default function SectionContainer({
     >
       {/* poignées de resize — masquées en readOnly */}
       {!readOnly && (
-        <>
-          <div className="section-handle left" onMouseDown={(e) => onMouseDown('left', e)} />
-          <div className="section-handle right" onMouseDown={(e) => onMouseDown('right', e)} />
-        </>
+        <div className="section-handle left" onMouseDown={(e) => onMouseDown('left', e)} />
       )}
+      {!readOnly && (
+        <div className="section-handle right" onMouseDown={(e) => onMouseDown('right', e)} />
+      )}
+
+      {/* header drag handle */}
+      {!readOnly ? (
+        <span className="drag-handle" {...listeners} {...attributes} title="Glisser pour déplacer">
+          ⠿
+        </span>
+      ) : null}
 
       <div
         className="section-top"

@@ -1,22 +1,24 @@
 <?php
-
 // src/Entity/Section.php
 declare(strict_types=1);
 
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
-use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
-use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Delete;
 use App\Repository\SectionRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 
+/**
+ * Section entity.
+ */
 #[ORM\Entity(repositoryClass: SectionRepository::class)]
 #[ORM\Table(name: 'section')]
 #[ApiResource(
@@ -31,6 +33,13 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[Delete(security: "is_granted('ROLE_USER')")]
 class Section
 {
+    /**
+     * Doctrine initialise cette propriété automatiquement à la persistance.
+     * PHPStan signale parfois que la propriété n'est jamais assignée dans le constructeur.
+     * On ignore cette règle pour cette ligne afin de garder la propriété typée.
+     *
+     * @phpstan-ignore-next-line
+     */
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -41,7 +50,6 @@ class Section
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private ?Character $character = null;
 
-    // optional server id (like s1, s2)
     #[ORM\Column(length: 100, nullable: true)]
     #[Groups(['section:read', 'section:write'])]
     private ?string $serverId = null;
@@ -50,6 +58,9 @@ class Section
     #[Groups(['section:read', 'section:write'])]
     private string $type = 'empty';
 
+    /**
+     * @var array<string,mixed>|null
+     */
     #[ORM\Column(type: Types::JSON, nullable: true)]
     #[Groups(['section:read', 'section:write'])]
     private ?array $content = null;
@@ -76,11 +87,8 @@ class Section
     {
         $this->createdAt = new \DateTimeImmutable();
         $this->isCollapsed = true;
+        $this->position = 0;
     }
-
-    // ----------------------
-    // Getters / Setters
-    // ----------------------
 
     public function getId(): ?int
     {
@@ -95,7 +103,6 @@ class Section
     public function setCharacter(?Character $character): static
     {
         $this->character = $character;
-
         return $this;
     }
 
@@ -107,7 +114,6 @@ class Section
     public function setServerId(?string $serverId): static
     {
         $this->serverId = $serverId;
-
         return $this;
     }
 
@@ -119,7 +125,6 @@ class Section
     public function setType(string $type): static
     {
         $this->type = $type;
-
         return $this;
     }
 
@@ -137,7 +142,6 @@ class Section
     public function setContent(?array $content): static
     {
         $this->content = $content;
-
         return $this;
     }
 
@@ -149,7 +153,6 @@ class Section
     public function setWidth(?int $width): static
     {
         $this->width = $width;
-
         return $this;
     }
 
@@ -161,7 +164,6 @@ class Section
     public function setPosition(int $position): static
     {
         $this->position = $position;
-
         return $this;
     }
 
@@ -173,7 +175,6 @@ class Section
     public function setIsCollapsed(bool $isCollapsed): static
     {
         $this->isCollapsed = $isCollapsed;
-
         return $this;
     }
 
@@ -185,7 +186,6 @@ class Section
     public function setUpdatedAt(?\DateTimeImmutable $updatedAt): static
     {
         $this->updatedAt = $updatedAt;
-
         return $this;
     }
 

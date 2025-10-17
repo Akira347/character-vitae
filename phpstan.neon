@@ -4,7 +4,6 @@ parameters:
         - src
         - tests
     ignoreErrors:
-      - '#Property App\\Entity\\Character::\$id \(int\|null\)#'
-      - '#Property App\\Entity\\User::\$id \(int\|null\)#'
+        - message: "#^Property App\\\\Entity\\\\.*\\:\\:\\$id \\(int\\|null\\) is never assigned int so it can be removed from the property type\\.$#"
     reportUnmatchedIgnoredErrors: false
     treatPhpDocTypesAsCertain: false
