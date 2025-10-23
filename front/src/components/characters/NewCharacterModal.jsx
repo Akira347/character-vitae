@@ -21,14 +21,21 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
   // Add special "Actuel" option at head when editing
   const effectiveTemplateList =
     mode === 'edit'
-      ? [{ key: '__current__', label: 'Actuel (conserver la disposition actuelle)', thumb: null }, ...templateList]
+      ? [
+          { key: '__current__', label: 'Actuel (conserver la disposition actuelle)', thumb: null },
+          ...templateList,
+        ]
       : templateList;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   // ALWAYS default to '__current__' when editing (user requested)
   const [templateKey, setTemplateKey] = useState(
-    mode === 'edit' ? '__current__' : effectiveTemplateList.length ? effectiveTemplateList[0].key : 'blank'
+    mode === 'edit'
+      ? '__current__'
+      : effectiveTemplateList.length
+        ? effectiveTemplateList[0].key
+        : 'blank',
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -77,7 +84,11 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
   const normalizeLayoutShape = (raw) => {
     if (!raw || typeof raw !== 'object') return { rows: [] };
     if (Array.isArray(raw.rows)) {
-      return { rows: raw.rows.map((row) => (Array.isArray(row) ? row.map((cell) => ({ ...(cell || {}) })) : [])) };
+      return {
+        rows: raw.rows.map((row) =>
+          Array.isArray(row) ? row.map((cell) => ({ ...(cell || {}) })) : [],
+        ),
+      };
     }
     return { rows: [] };
   };
@@ -125,7 +136,9 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
         const safeCell = { ...(cell || {}) };
         const type = typeof safeCell.type === 'string' ? safeCell.type : 'empty';
         if (type === 'empty') {
-          safeCell.content = Object.prototype.hasOwnProperty.call(safeCell, 'content') ? safeCell.content : null;
+          safeCell.content = Object.prototype.hasOwnProperty.call(safeCell, 'content')
+            ? safeCell.content
+            : null;
         } else {
           if (Object.prototype.hasOwnProperty.call(contentMap, type)) {
             safeCell.content = contentMap[type];
@@ -167,15 +180,23 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
         onHide?.();
 
         const createdId =
-          json?.id ?? json?._id ?? (json?.['@id'] ? String(json['@id']).split('/').pop() : getServerId());
+          json?.id ??
+          json?._id ??
+          (json?.['@id'] ? String(json['@id']).split('/').pop() : getServerId());
 
         if (method === 'POST') {
-          window.dispatchEvent(new CustomEvent('character-created', { detail: { id: String(createdId) } }));
+          window.dispatchEvent(
+            new CustomEvent('character-created', { detail: { id: String(createdId) } }),
+          );
         } else {
           // PATCH/PUT
-          window.dispatchEvent(new CustomEvent('character-updated', { detail: { id: String(createdId) } }));
+          window.dispatchEvent(
+            new CustomEvent('character-updated', { detail: { id: String(createdId) } }),
+          );
           // also a specific layout change event to make Dashboard reload layout immediately
-          window.dispatchEvent(new CustomEvent('character-layout-changed', { detail: { id: String(createdId) } }));
+          window.dispatchEvent(
+            new CustomEvent('character-layout-changed', { detail: { id: String(createdId) } }),
+          );
         }
 
         if (createdId) {
@@ -241,7 +262,9 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
       const isKeepLayout = templateKey === '__current__';
       if (!isKeepLayout) {
         const selectedTemplate = templateList.find((t) => t.key === templateKey);
-        const tplLayout = selectedTemplate ? selectedTemplate.layout ?? { rows: [] } : { rows: [] };
+        const tplLayout = selectedTemplate
+          ? (selectedTemplate.layout ?? { rows: [] })
+          : { rows: [] };
 
         const contentMap = buildContentMapFromInitial(initialData ?? {});
         const mergedLayout = mergeTemplateWithContentMap(tplLayout, contentMap);
@@ -342,7 +365,9 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
     <>
       <Modal show={show} onHide={() => onHide?.()} size="lg" centered>
         <Modal.Header closeButton>
-          <Modal.Title>{mode === 'edit' ? 'Édition du personnage' : 'Nouveau personnage'}</Modal.Title>
+          <Modal.Title>
+            {mode === 'edit' ? 'Édition du personnage' : 'Nouveau personnage'}
+          </Modal.Title>
         </Modal.Header>
 
         <Form onSubmit={handleSubmit}>
@@ -384,8 +409,9 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
                       onClick={() => setTemplateKey(t.key)}
                       onKeyDown={() => setTemplateKey(t.key)}
                       tabIndex={0}
-                      className={`p-2 border rounded h-100 d-flex flex-column justify-content-between ${t.key === templateKey ? 'border-3 border-primary' : ''
-                        }`}
+                      className={`p-2 border rounded h-100 d-flex flex-column justify-content-between ${
+                        t.key === templateKey ? 'border-3 border-primary' : ''
+                      }`}
                       style={{
                         cursor: 'pointer',
                         background: t.key === templateKey ? 'rgba(0,0,0,0.03)' : '',
@@ -393,7 +419,9 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
                     >
                       <div>
                         <strong>{t.label}</strong>
-                        {t.key === '__current__' && <div style={{ fontSize: 12 }}>Garde la disposition actuelle</div>}
+                        {t.key === '__current__' && (
+                          <div style={{ fontSize: 12 }}>Garde la disposition actuelle</div>
+                        )}
                       </div>
                       <div className="mt-2 text-center">
                         {t.thumb ? (
@@ -476,7 +504,12 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
             <Button variant="secondary" onClick={() => onHide?.()} disabled={submitting}>
               Annuler
             </Button>
-            <Button data-testid="modal-submit" variant="primary" type="submit" disabled={submitting}>
+            <Button
+              data-testid="modal-submit"
+              variant="primary"
+              type="submit"
+              disabled={submitting}
+            >
               {submitting ? (
                 <>
                   <Spinner animation="border" size="sm" /> &nbsp;Enregistrement...
@@ -525,12 +558,16 @@ export default function NewCharacterModal({ show, onHide, mode = 'create', initi
         </Modal.Header>
         <Modal.Body>
           <p>
-            Vous avez choisi un nouveau modèle. <strong>Si vous continuez, la disposition
-              (layout) actuelle sera remplacée et ne pourra pas être récupérée automatiquement.</strong>
+            Vous avez choisi un nouveau modèle.{' '}
+            <strong>
+              Si vous continuez, la disposition (layout) actuelle sera remplacée et ne pourra pas
+              être récupérée automatiquement.
+            </strong>
           </p>
           <p>
             Les contenus de sections existants seront conservés quand ils correspondent à des
-            sections du nouveau modèle (par type). Certains emplacements pourront cependant être vides.
+            sections du nouveau modèle (par type). Certains emplacements pourront cependant être
+            vides.
           </p>
           <p>Souhaitez-vous continuer ?</p>
         </Modal.Body>

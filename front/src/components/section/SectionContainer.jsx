@@ -1,4 +1,3 @@
-// src/components/section/SectionContainer.jsx
 import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useSortable } from '@dnd-kit/sortable';
@@ -16,7 +15,6 @@ export default function SectionContainer({
   children,
   readOnly,
 }) {
-  // Hooks doivent être appelés TOUJOURS — mais on n'appliquera pas les listeners en readOnly
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
   const containerRef = useRef(null);
   const resizing = useRef(null);
@@ -27,6 +25,15 @@ export default function SectionContainer({
     setNodeRef(node);
     setDropRef(node);
     containerRef.current = node;
+  };
+
+  const parseWidth = (w) => {
+    if (typeof w === 'number') return w;
+    if (typeof w === 'string') {
+      const n = Number(w);
+      if (!Number.isNaN(n)) return n;
+    }
+    return undefined;
   };
 
   const onMouseDown = (side, e) => {
@@ -59,19 +66,44 @@ export default function SectionContainer({
     );
     const clamped = Math.min(maxW, Math.max(minW, rawW));
 
+    // Apply inline width to give immediate visual feedback
     containerRef.current.style.minWidth = `${clamped}px`;
     containerRef.current.style.maxWidth = `${clamped}px`;
   };
 
   const onMouseUp = () => {
     if (readOnly) return;
+    if (!containerRef.current) {
+      resizing.current = null;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      return;
+    }
+
+    // compute final numeric width (px)
+    const finalWidth = containerRef.current.offsetWidth;
+    // emit global event so parent (Dashboard) can update its model
+    try {
+      window.dispatchEvent(
+        new CustomEvent('section-resized', {
+          detail: { id, width: Number(finalWidth) },
+        }),
+      );
+    } catch (err) {
+      // Defensive: don't break UI if dispatch fails
+      // eslint-disable-next-line no-console
+      console.error('section-resized dispatch failed', err);
+    }
+
     resizing.current = null;
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
   };
 
+  // compute inline style from prop width (accept number or numeric string)
+  const wNum = parseWidth(width);
   const widthStyle =
-    typeof width === 'number' ? { minWidth: `${width}px`, maxWidth: `${width}px` } : {};
+    typeof wNum === 'number' ? { minWidth: `${wNum}px`, maxWidth: `${wNum}px` } : {};
 
   return (
     <div
@@ -165,7 +197,8 @@ export default function SectionContainer({
 SectionContainer.propTypes = {
   id: PropTypes.string.isRequired,
   type: PropTypes.string.isRequired,
-  width: PropTypes.number,
+  // accept number or numeric string for backward compatibility
+  width: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   collapsed: PropTypes.bool,
   onToggle: PropTypes.func.isRequired,
   onEdit: PropTypes.func,

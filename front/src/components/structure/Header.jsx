@@ -81,7 +81,12 @@ export default function Header() {
 
   const loadCharacters = useCallback(
     async (preferredId = null, signal = undefined) => {
-      console.debug('loadCharacters: start', { preferredId, selectedCharId, user: !!user, token: !!token });
+      console.debug('loadCharacters: start', {
+        preferredId,
+        selectedCharId,
+        user: !!user,
+        token: !!token,
+      });
 
       if (mountedRef.current) setLoadingChars(true);
       if (mountedRef.current) setCharsError(null);
@@ -128,7 +133,10 @@ export default function Header() {
           })
           .filter((x) => x.id !== null && x.id !== undefined);
 
-        console.debug('loadCharacters: normalized entries', { normalizedCount: normalized.length, sample: normalized.slice(0, 5) });
+        console.debug('loadCharacters: normalized entries', {
+          normalizedCount: normalized.length,
+          sample: normalized.slice(0, 5),
+        });
 
         if (mountedRef.current) {
           setCharacters(normalized);
@@ -153,7 +161,12 @@ export default function Header() {
           toSelect = null;
         }
 
-        console.debug('loadCharacters: decided toSelect', { toSelect, pref, currentSel, lastSelected });
+        console.debug('loadCharacters: decided toSelect', {
+          toSelect,
+          pref,
+          currentSel,
+          lastSelected,
+        });
 
         if (mountedRef.current) {
           if (toSelect !== null) {
@@ -179,7 +192,8 @@ export default function Header() {
         if (err && err.name === 'AbortError') {
           console.debug('loadCharacters: aborted', err);
         } else {
-          if (mountedRef.current) setCharsError(err?.message || 'Impossible de charger les fiches.');
+          if (mountedRef.current)
+            setCharsError(err?.message || 'Impossible de charger les fiches.');
           console.error('loadCharacters error', err);
         }
         if (mountedRef.current) setCharacters([]);
@@ -194,7 +208,7 @@ export default function Header() {
 
   useEffect(() => {
     const controller = new AbortController();
-    loadCharacters(null, controller.signal).catch(() => { });
+    loadCharacters(null, controller.signal).catch(() => {});
     return () => controller.abort();
   }, [loadCharacters]);
 

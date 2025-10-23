@@ -164,13 +164,30 @@ export default function Dashboard({
       const chunk = secs.slice(i, i + 5);
       const row = chunk.map((s) => {
         const rawId = s.originalId ?? (s.id ? String(s.id).replace(/^sec-/, '') : null);
-        return {
+
+        // Coerce width to a number when possible. If not set, omit the width key.
+        let widthVal;
+        if (typeof s.width === 'number') {
+          widthVal = s.width;
+        } else if (s.width !== undefined && s.width !== null && s.width !== '') {
+          const n = Number(s.width);
+          if (!Number.isNaN(n)) widthVal = n;
+        }
+
+        const outCell = {
           id: rawId ?? `s${i + 1}`,
           type: s.type,
-          width: typeof s.width === 'number' ? s.width : s.width ?? undefined,
+          // content must be null for empty slots
           content: s.content === undefined ? (s.type === 'empty' ? null : []) : s.content,
-          isCollapsed: !!s.collapsed, // preserve collapsed
+          isCollapsed: !!s.collapsed,
         };
+
+        // attach width only if we actually have a numeric value
+        if (typeof widthVal === 'number') {
+          outCell.width = widthVal;
+        }
+
+        return outCell;
       });
       rows.push(row);
     }
@@ -208,25 +225,34 @@ export default function Dashboard({
 
   const [activeTab, setActiveTab] = useState('sections');
 
-  const { handleDragEnd, activeId, setActiveId } = useDragDrop(sections, setSections);
-  const sensor = useSensor(PointerSensor);
+  const { sensors, handleDragEnd, activeId, setActiveId } = useDragDrop(sections, setSections, {
+    onCreateSection: (newSection, placeIdx) => {
+      // Ouvrir le formulaire d'édition pour la nouvelle section créée
+      setEditing({ show: true, sectionId: newSection.id });
+    },
+    // optionnel : onOpenEditor peut être utilisé à la place
+  });
 
   const handleAddSection = (type) => {
     if (readOnly) return;
     if (sections.some((s) => s.type === type)) return;
     const idx = sections.findIndex((s) => s.type === 'empty');
     if (idx === -1) return;
+    const newId = `sec-${Date.now()}`;
     const newSection = {
-      id: `sec-${Date.now()}`,
+      id: newId,
       type,
       content: [],
       collapsed: false,
     };
+    // use setSections wrapper so dirty is tracked
     setSections((prev) => {
       const copy = [...prev];
       copy[idx] = newSection;
       return copy;
     });
+    // ouvrir le formulaire d'édition immédiatement
+    setEditing({ show: true, sectionId: newId });
   };
 
   const handleRemoveSection = (id) => {
@@ -244,12 +270,47 @@ export default function Dashboard({
     setSections((secs) => secs.map((s) => (s.id === id ? { ...s, collapsed: !s.collapsed } : s)));
   };
 
+  useEffect(() => {
+    const onResized = (ev) => {
+      const { id: resizedId, width: newWidth } = ev?.detail ?? {};
+      if (!resizedId || typeof newWidth !== 'number') return;
+      setSections((prev) =>
+        prev.map((s) => (s.id === resizedId ? { ...s, width: Number(newWidth) } : s)),
+      );
+      // mark dirty - setSections already does that; if you call setSections directly ensure it marks dirty
+    };
+    window.addEventListener('section-resized', onResized);
+    return () => window.removeEventListener('section-resized', onResized);
+  }, []);
+
   // Save — Dashboard listens to header 'save-character' event
   useEffect(() => {
     const onSaveCharacter = async () => {
       if (!characterId) return;
+      // build layout as before
       const layout = sectionsToLayout(sections);
-      const body = { layout };
+
+      // Build a sections update array for existing backend section entities
+      // so the backend can persist position/width per section entity if needed.
+      const sectionsUpdates = sections
+        .map((s, idx) => {
+          // only sections that are backed by the server (backendId) should be sent
+          if (!s.backendId) return null;
+          // normalize width to number when possible
+          const w = s.width === undefined || s.width === null ? null : Number(s.width);
+          return {
+            id: s.backendId,
+            position: idx,
+            // only include width if it's a valid finite number (else send null to let backend decide)
+            ...(Number.isFinite(w) ? { width: w } : { width: null }),
+          };
+        })
+        .filter(Boolean);
+
+      // Compose body. Keep layout (fallback) and include sections updates when available.
+      const body = sectionsUpdates.length > 0 ? { layout, sections: sectionsUpdates } : { layout };
+
+      console.debug('onSaveCharacter: layout', layout);
       try {
         const headers = {
           'Content-Type': 'application/merge-patch+json',
@@ -265,11 +326,21 @@ export default function Dashboard({
 
         setIsDirty(false);
         window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: false } }));
-        window.dispatchEvent(new CustomEvent('character-updated', { detail: { id: String(characterId) } }));
-        window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Disposition sauvegardée', variant: 'success', timeout: 2000 } }));
+        window.dispatchEvent(
+          new CustomEvent('character-updated', { detail: { id: String(characterId) } }),
+        );
+        window.dispatchEvent(
+          new CustomEvent('notify', {
+            detail: { message: 'Disposition sauvegardée', variant: 'success', timeout: 2000 },
+          }),
+        );
       } catch (err) {
         console.error('save-character failed', err);
-        window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Erreur sauvegarde', variant: 'danger', timeout: 4000 } }));
+        window.dispatchEvent(
+          new CustomEvent('notify', {
+            detail: { message: 'Erreur sauvegarde', variant: 'danger', timeout: 4000 },
+          }),
+        );
       }
     };
 
@@ -277,27 +348,30 @@ export default function Dashboard({
     return () => window.removeEventListener('save-character', onSaveCharacter);
   }, [characterId, sections, sectionsToLayout, token]);
 
-  const reloadCharacterFromServer = useCallback(async (idToLoad) => {
-    if (!idToLoad) return;
-    try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const json = await fetchJson(`/apip/characters/${idToLoad}`, { method: 'GET', headers });
-      const data = json?.data ?? json;
-      if (!data) return;
-      if (Array.isArray(data.sections) && data.sections.length > 0) {
-        setSectionsRaw(buildSectionsFromCollection(data.sections));
-      } else if (data.layout) {
-        setSectionsRaw(parseLayoutToSections(data.layout));
+  const reloadCharacterFromServer = useCallback(
+    async (idToLoad) => {
+      if (!idToLoad) return;
+      try {
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const json = await fetchJson(`/apip/characters/${idToLoad}`, { method: 'GET', headers });
+        const data = json?.data ?? json;
+        if (!data) return;
+        if (Array.isArray(data.sections) && data.sections.length > 0) {
+          setSectionsRaw(buildSectionsFromCollection(data.sections));
+        } else if (data.layout) {
+          setSectionsRaw(parseLayoutToSections(data.layout));
+        }
+        if (data.avatar) {
+          setAvatarData(data.avatar);
+        }
+        setIsDirty(false);
+        window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: false } }));
+      } catch (err) {
+        console.error('reloadCharacterFromServer error', err);
       }
-      if (data.avatar) {
-        setAvatarData(data.avatar);
-      }
-      setIsDirty(false);
-      window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: false } }));
-    } catch (err) {
-      console.error('reloadCharacterFromServer error', err);
-    }
-  }, [token, buildSectionsFromCollection, parseLayoutToSections]);
+    },
+    [token, buildSectionsFromCollection, parseLayoutToSections],
+  );
 
   useEffect(() => {
     const onCharacterUpdated = (ev) => {
@@ -364,7 +438,7 @@ export default function Dashboard({
             <div className="section-sidebar">
               {demoOnlyAvatar ? (
                 <div style={{ padding: 10 }}>
-                  <AvatarInfoPanel data={avatarData} onEditAvatar={() => { }} />
+                  <AvatarInfoPanel data={avatarData} onEditAvatar={() => {}} />
                 </div>
               ) : (
                 <>
@@ -386,7 +460,7 @@ export default function Dashboard({
                     {activeTab === 'sections' ? (
                       <div style={{ padding: 10 }}>Aperçu — lecture seule</div>
                     ) : (
-                      <AvatarInfoPanel data={avatarData} onEditAvatar={() => { }} />
+                      <AvatarInfoPanel data={avatarData} onEditAvatar={() => {}} />
                     )}
                   </div>
                 </>
@@ -408,27 +482,17 @@ export default function Dashboard({
 
   return (
     <DndContext
-      sensors={useSensors(sensor)}
+      sensors={sensors}
       collisionDetection={closestCenter}
-      onDragStart={({ active }) => setActiveId(active.id)}
+      onDragStart={({ active }) => {
+        console.debug('DndContext onDragStart', {
+          activeId: active?.id,
+          sectionsSnapshot: sections.map((s, i) => ({ idx: i, id: s.id, type: s.type })),
+        });
+        setActiveId(active.id);
+      }}
       onDragEnd={(event) => {
-        const { active, over } = event;
-
-        if (active.id.startsWith('type-') && over?.id?.startsWith('empty-')) {
-          const placeIdx = parseInt(over.id.replace('empty-', ''), 10);
-          const typeName = active.id.replace(/^type-/, '');
-          const newId = `sec-${Date.now()}`;
-          const newSection = { id: newId, type: typeName, content: [], collapsed: false };
-
-          setSections((prev) => {
-            const copy = [...prev];
-            copy[placeIdx] = newSection;
-            return copy;
-          });
-          setEditing({ show: true, sectionId: newId });
-          return;
-        }
-
+        // no special-case for type-... here, delegate to hook
         handleDragEnd(event);
       }}
       onDragCancel={() => setActiveId(null)}
@@ -501,7 +565,9 @@ export default function Dashboard({
                 setAvatarData(newAvatarData);
                 setAvatarEditing(false);
                 setIsDirty(true);
-                window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: true } }));
+                window.dispatchEvent(
+                  new CustomEvent('dirty-changed', { detail: { isDirty: true } }),
+                );
               }}
               onCancel={() => setAvatarEditing(false)}
             />

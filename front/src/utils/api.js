@@ -58,7 +58,9 @@ export async function fetchJson(origUrl, opts = {}) {
       ...optionsForTry,
       headers,
       // Replace body with possibly stringified version (but don't set body for GET/HEAD)
-      ...(hasBody && !['GET', 'HEAD'].includes(String(optionsForTry.method).toUpperCase()) ? { body: bodyToSend } : {}),
+      ...(hasBody && !['GET', 'HEAD'].includes(String(optionsForTry.method).toUpperCase())
+        ? { body: bodyToSend }
+        : {}),
     };
 
     const resp = await fetch(url, fetchOpts);
@@ -75,7 +77,11 @@ export async function fetchJson(origUrl, opts = {}) {
     // Try to parse JSON if the response looks like JSON (Content-Type header contains json)
     const contentType = resp.headers.get('content-type') || '';
     let parsed = null;
-    if (contentType.includes('json') || String(text).trim().startsWith('{') || String(text).trim().startsWith('[')) {
+    if (
+      contentType.includes('json') ||
+      String(text).trim().startsWith('{') ||
+      String(text).trim().startsWith('[')
+    ) {
       try {
         parsed = JSON.parse(text);
       } catch {
