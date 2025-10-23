@@ -1,5 +1,4 @@
-// src/components/structure/Header.jsx
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   Navbar,
@@ -11,83 +10,301 @@ import {
   Alert,
   NavDropdown,
   Spinner,
-  Dropdown,
 } from 'react-bootstrap';
 import PlumeIcon from '../../assets/icons/plume.png';
 import SignupForm from '../auth/SignupForm';
 import { AuthContext } from '../../contexts/AuthContext';
 import NewCharacterModal from '../../components/characters/NewCharacterModal';
+import HeaderDeleteButton from './HeaderDeleteButton';
 import { fetchJson } from '../../utils/api';
+import '../../styles/header.css';
 
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, login, logout, token } = useContext(AuthContext);
+  const { user, login, logout, token, resendConfirmation } = useContext(AuthContext) || {};
+  console.debug('Header render: AuthContext', { user, token: !!token });
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const open = params.get('openLogin');
-    const confirmed = params.get('confirmed');
-
-    if (open === '1' || confirmed === '1') {
-      setView('login');
-      setShow(true);
-      params.delete('openLogin');
-      params.delete('confirmed');
-      const newSearch = params.toString();
-      navigate(location.pathname + (newSearch ? '?' + newSearch : ''), { replace: true });
-    }
-  }, [location, navigate]);
-
+  // login/signup modal
   const [show, setShow] = useState(false);
   const [view, setView] = useState('login');
 
+  // login state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState(null);
+  const [loginUnconfirmed, setLoginUnconfirmed] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
-
   const [signupSuccessMessage, setSignupSuccessMessage] = useState(null);
 
-  const [showNewCharacter, setShowNewCharacter] = useState(false);
-
-  // characters list + selected
+  // characters
   const [characters, setCharacters] = useState([]);
-  const [selectedCharId, setSelectedCharId] = useState(null);
+  const [selectedCharId, setSelectedCharId] = useState(null); // always string or null
   const [loadingChars, setLoadingChars] = useState(false);
   const [charsError, setCharsError] = useState(null);
 
+  // modal create/edit
+  const [showNewCharacter, setShowNewCharacter] = useState(false);
+  const [modalMode, setModalMode] = useState('create');
+  const [modalInitialData, setModalInitialData] = useState(null);
+
+  // inline notification
+  const [inlineNotify, setInlineNotify] = useState(null);
+
+  // Save button dirty state (listened from Dashboard)
+  const [isDirty, setIsDirty] = useState(false);
+
+  const mountedRef = useRef(true);
   useEffect(() => {
-    if (!user) {
-      setCharacters([]);
-      setSelectedCharId(null);
-      return;
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Robust id extractor -> ALWAYS returns string or null
+  const extractId = (item) => {
+    if (!item) return null;
+    if (typeof item.id === 'number' || typeof item.id === 'string') {
+      return String(item.id);
     }
-    // fetch characters for current user
-    (async () => {
-      setLoadingChars(true);
-      setCharsError(null);
+    const atId = item['@id'] ?? item['@id'];
+    if (typeof atId === 'string') {
+      const parts = atId.split('/');
+      const last = parts[parts.length - 1];
+      if (last) {
+        return String(last);
+      }
+    }
+    return null;
+  };
+
+  const loadCharacters = useCallback(
+    async (preferredId = null, signal = undefined) => {
+      console.debug('loadCharacters: start', {
+        preferredId,
+        selectedCharId,
+        user: !!user,
+        token: !!token,
+      });
+
+      if (mountedRef.current) setLoadingChars(true);
+      if (mountedRef.current) setCharsError(null);
+
+      if (!user) {
+        console.debug('loadCharacters: no user, aborting.');
+        if (mountedRef.current) {
+          setCharacters([]);
+          setSelectedCharId(null);
+          setLoadingChars(false);
+        }
+        return [];
+      }
+
       try {
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const data = await fetchJson('/api/characters', { method: 'GET', headers });
-        // ApiPlatform collection might be nested; try to normalise:
-        // If array returned directly, use it; if { 'hydra:member': [...] } handle it.
+        console.debug('loadCharacters: fetching /apip/characters', { headers });
+        const data = await fetchJson('/apip/characters', { method: 'GET', headers, signal });
+
+        console.debug('loadCharacters: raw response from fetchJson', { data });
+
+        const dataRaw = data?.data ?? data;
+        console.debug('loadCharacters: normalized dataRaw', { dataRaw });
+
         let list = [];
-        if (Array.isArray(data)) list = data;
-        else if (data && Array.isArray(data['hydra:member'])) list = data['hydra:member'];
-        else if (data && data['hydra:member'] === undefined && data['members']) list = data['members']; // fallback
-        setCharacters(list);
-        if (list.length > 0 && !selectedCharId) {
-          setSelectedCharId(list[0].id);
+        if (Array.isArray(dataRaw)) {
+          list = dataRaw;
+        } else if (dataRaw && Array.isArray(dataRaw.member)) {
+          list = dataRaw.member;
+        } else if (dataRaw && Array.isArray(dataRaw['hydra:member'])) {
+          list = dataRaw['hydra:member'];
+        } else if (dataRaw && Array.isArray(dataRaw['members'])) {
+          list = dataRaw['members'];
+        } else if (dataRaw && typeof dataRaw === 'object') {
+          list = Object.values(dataRaw);
         }
+
+        const normalized = list
+          .map((c) => {
+            const id = extractId(c);
+            const title =
+              typeof c?.title === 'string' && c.title.length ? c.title : id ? `#${id}` : undefined;
+            return { raw: c, id, title };
+          })
+          .filter((x) => x.id !== null && x.id !== undefined);
+
+        console.debug('loadCharacters: normalized entries', {
+          normalizedCount: normalized.length,
+          sample: normalized.slice(0, 5),
+        });
+
+        if (mountedRef.current) {
+          setCharacters(normalized);
+        } else {
+          console.debug('loadCharacters: instance not mounted any more, skipping setCharacters');
+        }
+
+        const pref = preferredId ? String(preferredId) : null;
+        const currentSel = selectedCharId ? String(selectedCharId) : null;
+        const lastSelected = localStorage.getItem('cv_selected_char');
+
+        let toSelect = null;
+        if (pref && normalized.find((n) => String(n.id) === pref)) {
+          toSelect = pref;
+        } else if (currentSel && normalized.find((n) => String(n.id) === currentSel)) {
+          toSelect = currentSel;
+        } else if (lastSelected && normalized.find((n) => String(n.id) === String(lastSelected))) {
+          toSelect = String(lastSelected);
+        } else if (normalized.length > 0) {
+          toSelect = String(normalized[0].id);
+        } else {
+          toSelect = null;
+        }
+
+        console.debug('loadCharacters: decided toSelect', {
+          toSelect,
+          pref,
+          currentSel,
+          lastSelected,
+        });
+
+        if (mountedRef.current) {
+          if (toSelect !== null) {
+            setSelectedCharId(String(toSelect));
+            localStorage.setItem('cv_selected_char', String(toSelect));
+            try {
+              if (!location.pathname.startsWith(`/dashboard/characters/${toSelect}`)) {
+                navigate(`/dashboard/characters/${toSelect}`);
+              }
+            } catch (e) {
+              // ignore
+            }
+          } else {
+            setSelectedCharId(null);
+            localStorage.removeItem('cv_selected_char');
+          }
+        } else {
+          console.debug('loadCharacters: skipping selection/navigate because not mounted');
+        }
+
+        return normalized;
       } catch (err) {
-        setCharsError(err.message || 'Impossible de charger les fiches.');
-        setCharacters([]);
+        if (err && err.name === 'AbortError') {
+          console.debug('loadCharacters: aborted', err);
+        } else {
+          if (mountedRef.current)
+            setCharsError(err?.message || 'Impossible de charger les fiches.');
+          console.error('loadCharacters error', err);
+        }
+        if (mountedRef.current) setCharacters([]);
+        return [];
       } finally {
-        setLoadingChars(false);
+        if (mountedRef.current) setLoadingChars(false);
+        console.debug('loadCharacters: finished (loadingChars false)');
       }
-    })();
-  }, [user, token]);
+    },
+    [user, token, navigate],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadCharacters(null, controller.signal).catch(() => {});
+    return () => controller.abort();
+  }, [loadCharacters]);
+
+  useEffect(() => {
+    const onSessionExpired = () => {
+      window.dispatchEvent(
+        new CustomEvent('notify', {
+          detail: {
+            message: 'Session expirée — reconnectez-vous',
+            variant: 'warning',
+            timeout: 5000,
+          },
+        }),
+      );
+      setView('login');
+      setShow(true);
+    };
+    window.addEventListener('session-expired', onSessionExpired);
+    return () => window.removeEventListener('session-expired', onSessionExpired);
+  }, []);
+
+  useEffect(() => {
+    const onOpenSignup = (ev) => {
+      setView('signup');
+      setShow(true);
+    };
+    window.addEventListener('open-signup', onOpenSignup);
+    return () => window.removeEventListener('open-signup', onOpenSignup);
+  }, []);
+
+  useEffect(() => {
+    const onNotify = (ev) => {
+      const d = (ev && ev.detail) || {};
+      setInlineNotify({ message: d.message || 'Info', variant: d.variant || 'info' });
+      const timeout = typeof d.timeout === 'number' ? d.timeout : 3000;
+      setTimeout(() => setInlineNotify(null), timeout);
+    };
+
+    const onCreated = async (ev) => {
+      const idRaw = ev?.detail?.id ?? null;
+      const id = idRaw ? String(idRaw) : null;
+      const controller = new AbortController();
+      await loadCharacters(id, controller.signal);
+      if (id) {
+        setSelectedCharId(String(id));
+        localStorage.setItem('cv_selected_char', String(id));
+        try {
+          navigate(`/dashboard/characters/${id}`);
+        } catch (e) {
+          // ignore
+        }
+      }
+      window.dispatchEvent(
+        new CustomEvent('notify', {
+          detail: { message: 'Fiche créée', variant: 'success', timeout: 2500 },
+        }),
+      );
+    };
+
+    const onUpdated = async () => {
+      await loadCharacters(null);
+      window.dispatchEvent(
+        new CustomEvent('notify', {
+          detail: { message: 'Fiche mise à jour', variant: 'success', timeout: 2000 },
+        }),
+      );
+    };
+
+    const onDeleted = async (ev) => {
+      const list = await loadCharacters(null);
+      window.dispatchEvent(
+        new CustomEvent('notify', {
+          detail: { message: 'Fiche supprimée', variant: 'info', timeout: 2000 },
+        }),
+      );
+    };
+
+    const onDirtyChanged = (ev) => {
+      const d = ev?.detail ?? {};
+      setIsDirty(Boolean(d.isDirty));
+    };
+
+    window.addEventListener('notify', onNotify);
+    window.addEventListener('character-created', onCreated);
+    window.addEventListener('character-updated', onUpdated);
+    window.addEventListener('character-deleted', onDeleted);
+    window.addEventListener('dirty-changed', onDirtyChanged);
+
+    return () => {
+      window.removeEventListener('notify', onNotify);
+      window.removeEventListener('character-created', onCreated);
+      window.removeEventListener('character-updated', onUpdated);
+      window.removeEventListener('character-deleted', onDeleted);
+      window.removeEventListener('dirty-changed', onDirtyChanged);
+    };
+  }, [loadCharacters, navigate]);
 
   const openLogin = () => {
     setView('login');
@@ -102,19 +319,17 @@ export default function Header() {
       const result = await login({ username: loginEmail, password: loginPassword });
       if (result.ok) {
         setShow(false);
-        navigate('/');
+        navigate('/dashboard');
+        setTimeout(() => loadCharacters(), 200);
       } else {
+        setLoginUnconfirmed(Boolean(result.unconfirmed));
         let msg = 'E-mail ou mot de passe incorrect';
         if (result.body) {
-          let backendMsg = null;
-          if (result.body.message) backendMsg = result.body.message;
-          else if (result.body.error) backendMsg = result.body.error;
-          else if (typeof result.body === 'string' && result.body.length) backendMsg = result.body;
-          if (backendMsg === 'Invalid credentials.') {
-            msg = 'E-mail ou mot de passe incorrect';
-          } else if (backendMsg) {
-            msg = backendMsg;
-          }
+          const backendMsg =
+            result.body.message ??
+            result.body.error ??
+            (typeof result.body === 'string' ? result.body : null);
+          if (backendMsg) msg = backendMsg;
         }
         setLoginError(msg);
       }
@@ -131,65 +346,154 @@ export default function Header() {
     navigate('/');
   };
 
-  // When user selects a character -> navigate to its edit page
   const onSelectCharacter = (ev) => {
-    const id = ev.target.value;
+    const id = ev.target.value ? String(ev.target.value) : null;
     setSelectedCharId(id);
     if (id) {
+      localStorage.setItem('cv_selected_char', String(id));
       navigate(`/dashboard/characters/${id}`);
     }
   };
 
-  // Save button triggers global event (Dashboard listens and will save)
-  const onHeaderSave = () => {
+  const onHeaderSave = async () => {
+    if (!characters || characters.length === 0) {
+      try {
+        const headers = {
+          'Content-Type': 'application/ld+json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
+        const body = {
+          title: 'Mon CV',
+          description: '',
+          templateType: 'blank',
+        };
+        const res = await fetchJson('/api/characters', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        });
+        const newId = res?.id ?? (res?.data && res.data.id) ?? null;
+        window.dispatchEvent(new CustomEvent('character-created', { detail: { id: newId } }));
+      } catch (err) {
+        console.error('Erreur création Mon CV', err);
+        window.dispatchEvent(
+          new CustomEvent('notify', {
+            detail: { message: 'Impossible de créer Mon CV', variant: 'danger', timeout: 4000 },
+          }),
+        );
+        return;
+      }
+    }
     window.dispatchEvent(new CustomEvent('save-character'));
+  };
+
+  const onNewCharacterHide = () => {
+    setShowNewCharacter(false);
+    setModalInitialData(null);
+    setModalMode('create');
+    setTimeout(() => {
+      if (!characters || characters.length === 0) {
+        loadCharacters();
+      }
+    }, 400);
+  };
+
+  const onEditClick = () => {
+    if (!selectedCharId) return;
+    const found = characters.find((c) => String(c.id) === String(selectedCharId));
+    setModalMode('edit');
+    setModalInitialData(found ? found.raw : { id: selectedCharId });
+    setShowNewCharacter(true);
   };
 
   return (
     <>
       <Navbar expand="lg" className="px-3">
-        <Container fluid>
-          <Navbar.Brand as={Link} to="/" className="brand-logo">
+        <Container fluid className="d-flex align-items-center">
+          <Navbar.Brand as={Link} to="/" className="brand-logo me-auto">
             Character Vitae
           </Navbar.Brand>
 
           <Nav className="ms-auto align-items-center">
+            {/* Profil démo : affichée uniquement si NON connecté */}
+            {!user && (
+              <div className="me-2 d-none d-md-block">
+                <button
+                  type="button"
+                  onClick={() => navigate('/demo')}
+                  title="Voir un profil de démonstration"
+                  className="btn-demo"
+                >
+                  Profil de démonstration
+                </button>
+              </div>
+            )}
+
             {user && (
               <>
-                {/* Sauvegarder (gauche) */}
                 <div className="me-2 d-flex align-items-center">
-                  <Button size="sm" variant="outline-light" onClick={onHeaderSave} aria-label="Sauvegarder">
-                    Sauvegarder
+                  {/* Sauvegarder : applique le même style 'btn-demo' et devient doré quand isDirty */}
+                  <Button
+                    size="sm"
+                    className="btn-demo"
+                    onClick={onHeaderSave}
+                    aria-label="Sauvegarder"
+                    style={{
+                      background: isDirty ? '#FFD700' : undefined,
+                      borderColor: isDirty ? '#E6C200' : undefined,
+                      color: isDirty ? '#000' : undefined,
+                      fontWeight: isDirty ? 700 : undefined,
+                    }}
+                  >
+                    {isDirty ? 'Sauvegarder*' : 'Sauvegarder'}
                   </Button>
                 </div>
 
-                {/* Sélecteur de personnages */}
                 <div className="me-2">
                   {loadingChars ? (
                     <Spinner animation="border" size="sm" />
-                  ) : (
+                  ) : characters && characters.length > 0 ? (
                     <Form.Select
                       size="sm"
                       value={selectedCharId ?? ''}
                       onChange={onSelectCharacter}
                       aria-label="Choisir fiche"
+                      style={{ minWidth: 200 }}
                     >
-                      <option value="">Mes fiches</option>
                       {characters.map((c) => (
-                        <option key={c.id} value={c.id}>
+                        <option key={String(c.id)} value={String(c.id)}>
                           {c.title ?? `#${c.id}`}
                         </option>
                       ))}
                     </Form.Select>
-                  )}
+                  ) : null}
                 </div>
 
-                {/* Nouveau personnage */}
+                {characters.length > 0 && (
+                  <div className="me-2">
+                    <Button
+                      size="sm"
+                      variant="outline-light"
+                      onClick={onEditClick}
+                      aria-label="Éditer la fiche sélectionnée"
+                      style={{ marginRight: 8 }}
+                    >
+                      ✎ Éditer
+                    </Button>
+                  </div>
+                )}
+
                 <Nav.Item className="me-2">
                   <Button
                     className="btn-parchment"
-                    onClick={() => setShowNewCharacter(true)}
+                    onClick={() => {
+                      setModalMode('create');
+                      setModalInitialData(null);
+                      setShowNewCharacter(true);
+                    }}
                     aria-label="Nouveau personnage"
+                    onMouseOver={(e) => (e.currentTarget.style.border = '1px solid #FFD700')}
+                    onMouseOut={(e) => (e.currentTarget.style.border = '1px solid transparent')}
                   >
                     + Nouveau personnage
                   </Button>
@@ -198,7 +502,11 @@ export default function Header() {
             )}
 
             {!user ? (
-              <Nav.Link onClick={openLogin} aria-label="Open login">
+              <Nav.Link
+                onClick={openLogin}
+                aria-label="Open login"
+                className="d-flex align-items-center"
+              >
                 <img
                   src={PlumeIcon}
                   alt="Connexion"
@@ -207,9 +515,7 @@ export default function Header() {
               </Nav.Link>
             ) : (
               <NavDropdown title={user.fullName || user.email} id="user-dropdown" align="end">
-                <NavDropdown.Item onClick={() => { /* go to profile */ }}>
-                  Mon profil
-                </NavDropdown.Item>
+                <NavDropdown.Item>Mon profil</NavDropdown.Item>
                 <NavDropdown.Divider />
                 <NavDropdown.Item onClick={() => handleLogout()}>Se déconnecter</NavDropdown.Item>
               </NavDropdown>
@@ -218,7 +524,7 @@ export default function Header() {
         </Container>
       </Navbar>
 
-      {/* Login / Signup modal (unchanged) */}
+      {/* login modal */}
       <Modal show={show} onHide={() => setShow(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>{view === 'login' ? 'Se connecter' : "S'inscrire"}</Modal.Title>
@@ -227,7 +533,38 @@ export default function Header() {
           {view === 'login' ? (
             <>
               {signupSuccessMessage && <Alert variant="success">{signupSuccessMessage}</Alert>}
-              {loginError && <Alert variant="danger">{loginError}</Alert>}
+              {loginError && (
+                <Alert variant="danger">
+                  <div>{loginError}</div>
+                  {loginUnconfirmed && (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="btn btn-link btn-sm"
+                        onClick={async () => {
+                          const resp = await resendConfirmation(loginEmail);
+                          if (resp && resp.ok) {
+                            setLoginError(null);
+                            setInlineNotify({
+                              message: resp.body?.message ?? 'E-mail renvoyé',
+                              variant: 'success',
+                            });
+                            setTimeout(() => setInlineNotify(null), 3500);
+                          } else {
+                            setInlineNotify({
+                              message: 'Impossible de renvoyer l’e-mail',
+                              variant: 'danger',
+                            });
+                            setTimeout(() => setInlineNotify(null), 3500);
+                          }
+                        }}
+                      >
+                        Renvoyer l’e-mail de confirmation
+                      </button>
+                    </div>
+                  )}
+                </Alert>
+              )}
               <Form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -255,7 +592,6 @@ export default function Header() {
                     disabled={loginLoading}
                   />
                 </Form.Group>
-
                 <div className="d-flex justify-content-between align-items-center">
                   <div>
                     <Button
@@ -278,8 +614,7 @@ export default function Header() {
                     <Button variant="primary" type="submit" disabled={loginLoading}>
                       {loginLoading ? (
                         <>
-                          <Spinner animation="border" size="sm" />
-                          &nbsp;Connexion...
+                          <Spinner animation="border" size="sm" /> &nbsp;Connexion...
                         </>
                       ) : (
                         'Connexion'
@@ -307,7 +642,9 @@ export default function Header() {
 
       <NewCharacterModal
         show={showNewCharacter}
-        onHide={() => setShowNewCharacter(false)}
+        onHide={onNewCharacterHide}
+        mode={modalMode}
+        initialData={modalInitialData}
       />
     </>
   );

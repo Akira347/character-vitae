@@ -13,29 +13,32 @@ import { useEffect } from 'react';
  * @param {boolean} isDirty
  * @param {string} message
  */
-export default function useUnsavedWarning(isDirty, message = 'Vous avez des modifications non sauvegardées. Quitter sans sauvegarder ?') {
-    useEffect(() => {
-        const handler = (e) => {
-            if (!isDirty) return;
-            e.preventDefault();
-            e.returnValue = message;
-            return message;
-        };
-        const onPop = (ev) => {
-            if (!isDirty) return;
-            const ok = window.confirm(message);
-            if (!ok) {
-                // prevent navigating back by pushing state again
-                history.pushState(null, '', location.href);
-            }
-        };
+export default function useUnsavedWarning(
+  isDirty,
+  message = 'Vous avez des modifications non sauvegardées. Quitter sans sauvegarder ?',
+) {
+  useEffect(() => {
+    const handler = (e) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = message;
+      return message;
+    };
+    const onPop = (ev) => {
+      if (!isDirty) return;
+      const ok = window.confirm(message);
+      if (!ok) {
+        // prevent navigating back by pushing state again
+        history.pushState(null, '', location.href);
+      }
+    };
 
-        window.addEventListener('beforeunload', handler);
-        window.addEventListener('popstate', onPop);
+    window.addEventListener('beforeunload', handler);
+    window.addEventListener('popstate', onPop);
 
-        return () => {
-            window.removeEventListener('beforeunload', handler);
-            window.removeEventListener('popstate', onPop);
-        };
-    }, [isDirty, message]);
+    return () => {
+      window.removeEventListener('beforeunload', handler);
+      window.removeEventListener('popstate', onPop);
+    };
+  }, [isDirty, message]);
 }

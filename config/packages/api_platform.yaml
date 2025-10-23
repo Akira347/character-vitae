@@ -2,3 +2,6 @@
 api_platform:
   title: 'Character Vitae API'
   # swagger_ui and docs are enabled by default
+  formats:
+    jsonld: [ 'application/ld+json' ]
+    json: [ 'application/json' ]

@@ -292,3 +292,15 @@ h3,
   font-weight: bold;
   color: --color-primary;
 }
+
+/* lecture seule : enlève pointillés et ombres intrusives */
+.dashboard-readonly .section-container.section-placeholder {
+  box-shadow: none;
+  border: none;
+  background: transparent;
+}
+
+/* accent pour drag handle hidden in readonly */
+.section-container.read-only .drag-handle {
+  display: none;
+}

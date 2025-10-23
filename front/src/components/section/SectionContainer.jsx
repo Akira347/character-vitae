@@ -1,44 +1,43 @@
-// src/components/section/SectionContainer.jsx
 import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useSortable } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
-/**
- * Conteneur d’une section du CV (drag, resize, collapse, edit, delete).
- *
- * @param {object} props              Props du composant (destructurées ci-dessous)
- * @param {string}   props.id         Identifiant unique de la section
- * @param {string}   props.type       Type de la section (ou "empty")
- * @param {boolean}  [props.collapsed] Si true, la section est repliée
- * @param {Function} props.onToggle   Fonction appelée avec (id) pour basculer collapsed
- * @param {Function} [props.onEdit]   Fonction appelée avec (id) sur “Modifier”
- * @param {Function} [props.onDelete] Fonction appelée avec (id) sur “Supprimer”
- * @param {React.ReactNode} [props.children] Contenu interne de la section
- * @returns {JSX.Element}             Le rendu du composant SectionContainer
- */
 export default function SectionContainer({
   id,
   type,
+  width,
   collapsed,
   onToggle,
   onEdit,
   onDelete,
   children,
+  readOnly,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
   const containerRef = useRef(null);
   const resizing = useRef(null);
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id });
   const isEmpty = type === 'empty';
+
   const rootRef = (node) => {
     setNodeRef(node);
     setDropRef(node);
     containerRef.current = node;
   };
 
+  const parseWidth = (w) => {
+    if (typeof w === 'number') return w;
+    if (typeof w === 'string') {
+      const n = Number(w);
+      if (!Number.isNaN(n)) return n;
+    }
+    return undefined;
+  };
+
   const onMouseDown = (side, e) => {
+    if (readOnly) return;
     e.stopPropagation();
     e.preventDefault();
     if (!containerRef.current) return;
@@ -67,16 +66,44 @@ export default function SectionContainer({
     );
     const clamped = Math.min(maxW, Math.max(minW, rawW));
 
-    // Au lieu de setWidth(clamped) :
+    // Apply inline width to give immediate visual feedback
     containerRef.current.style.minWidth = `${clamped}px`;
     containerRef.current.style.maxWidth = `${clamped}px`;
   };
 
   const onMouseUp = () => {
+    if (readOnly) return;
+    if (!containerRef.current) {
+      resizing.current = null;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      return;
+    }
+
+    // compute final numeric width (px)
+    const finalWidth = containerRef.current.offsetWidth;
+    // emit global event so parent (Dashboard) can update its model
+    try {
+      window.dispatchEvent(
+        new CustomEvent('section-resized', {
+          detail: { id, width: Number(finalWidth) },
+        }),
+      );
+    } catch (err) {
+      // Defensive: don't break UI if dispatch fails
+      // eslint-disable-next-line no-console
+      console.error('section-resized dispatch failed', err);
+    }
+
     resizing.current = null;
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
   };
+
+  // compute inline style from prop width (accept number or numeric string)
+  const wNum = parseWidth(width);
+  const widthStyle =
+    typeof wNum === 'number' ? { minWidth: `${wNum}px`, maxWidth: `${wNum}px` } : {};
 
   return (
     <div
@@ -91,13 +118,18 @@ export default function SectionContainer({
         .filter(Boolean)
         .join(' ')}
       style={{
+        ...widthStyle,
         transform: CSS.Transform.toString(transform),
         transition,
       }}
     >
-      {/* poignées de resize */}
-      <div className="section-handle left" onMouseDown={(e) => onMouseDown('left', e)} />
-      <div className="section-handle right" onMouseDown={(e) => onMouseDown('right', e)} />
+      {/* poignées de resize — masquées en readOnly */}
+      {!readOnly && (
+        <div className="section-handle left" onMouseDown={(e) => onMouseDown('left', e)} />
+      )}
+      {!readOnly && (
+        <div className="section-handle right" onMouseDown={(e) => onMouseDown('right', e)} />
+      )}
 
       <div
         className="section-top"
@@ -110,18 +142,20 @@ export default function SectionContainer({
           onClick={() => onToggle(id)}
           onPointerDown={(e) => e.stopPropagation()}
         >
+          {/* drag handle: n'appliquer listeners/attributes que si pas readOnly */}
           <span
             className="drag-handle"
-            {...listeners}
-            {...attributes}
-            title="Glisser pour déplacer"
+            title={readOnly ? '' : 'Glisser pour déplacer'}
+            {...(readOnly ? {} : { ...listeners })}
+            {...(readOnly ? {} : { ...attributes })}
+            style={{ cursor: readOnly ? 'default' : undefined }}
           >
-            ⠿
+            {!readOnly ? '⠿' : null}
           </span>
 
           <h5>{type}</h5>
           <div className="controls">
-            {onEdit && (
+            {onEdit && !readOnly && (
               <button
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
@@ -133,7 +167,7 @@ export default function SectionContainer({
                 ✎
               </button>
             )}
-            {onDelete && (
+            {onDelete && !readOnly && (
               <button
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
@@ -163,16 +197,21 @@ export default function SectionContainer({
 SectionContainer.propTypes = {
   id: PropTypes.string.isRequired,
   type: PropTypes.string.isRequired,
+  // accept number or numeric string for backward compatibility
+  width: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   collapsed: PropTypes.bool,
   onToggle: PropTypes.func.isRequired,
   onEdit: PropTypes.func,
   onDelete: PropTypes.func,
   children: PropTypes.node,
+  readOnly: PropTypes.bool,
 };
 
 SectionContainer.defaultProps = {
+  width: undefined,
   collapsed: false,
   onEdit: null,
   onDelete: null,
   children: null,
+  readOnly: false,
 };

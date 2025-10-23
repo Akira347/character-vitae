@@ -32,6 +32,7 @@ final class LoginTest extends WebTestCase
         $user->setEmail('login-test@example.com');
         $user->setRoles(['ROLE_USER']);
         $user->setPassword($hasher->hashPassword($user, 'secret123'));
+        $user->setIsConfirmed(true); // <-- important: mark as confirmed for login
 
         $em->persist($user);
         $em->flush();

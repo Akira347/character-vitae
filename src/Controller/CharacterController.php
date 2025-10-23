@@ -1,5 +1,7 @@
 <?php
+
 // src/Controller/CharacterController.php
+declare(strict_types=1);
 
 namespace App\Controller;
 
@@ -20,19 +22,19 @@ class CharacterController extends AbstractController
     public function __construct(
         private EntityManagerInterface $em,
         private ValidatorInterface $validator,
-        private LoggerInterface $logger
-    ) {}
+        private LoggerInterface $logger,
+    ) {
+    }
 
     /**
-     * Create new character
+     * Create new character.
      *
      * POST /api/characters
-     * Body: { "title": "...", "description": "...", "templateType": "blank|template1|template2", "layout": {...} }
+     * Body: { "title": "...", "description": "...", "templateType": "...", "layout": {...} }
      */
     #[Route('/characters', name: 'characters_create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
-        // require authenticated user
         /** @var User|null $user */
         $user = $this->getUser();
         if (!$user instanceof User) {
@@ -43,41 +45,43 @@ class CharacterController extends AbstractController
             $data = $request->toArray();
         } catch (\Throwable $e) {
             $this->logger->warning('Character create: invalid JSON', ['exception' => $e->getMessage()]);
+
             return $this->json(['error' => 'Invalid JSON body'], Response::HTTP_BAD_REQUEST);
         }
 
-        $title = isset($data['title']) && is_scalar($data['title']) ? trim((string)$data['title']) : null;
-        $description = isset($data['description']) && is_scalar($data['description']) ? (string)$data['description'] : null;
-        $templateType = isset($data['templateType']) && is_scalar($data['templateType']) ? (string)$data['templateType'] : null;
-        $layout = isset($data['layout']) && is_array($data['layout']) ? $data['layout'] : null;
+        /** @var array<string,mixed> $data */
+        $title = isset($data['title']) && \is_scalar($data['title']) ? \trim((string) $data['title']) : null;
+        $description = isset($data['description']) && \is_scalar($data['description']) ? (string) $data['description'] : null;
+        $templateType = isset($data['templateType']) && \is_scalar($data['templateType']) ? (string) $data['templateType'] : null;
 
         if (!$title) {
             return $this->json(['error' => 'Title is required'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $character = new Character();
-        $character->setTitle((string)$title);
+        $character->setTitle($title);
         $character->setDescription($description);
         $character->setTemplateType($templateType);
         $character->setOwner($user);
 
-        // if front provided layout, accept it; otherwise resolve server-side from templateType
-        if ($layout !== null) {
+        // handle layout: either provided or derived from template
+        if (isset($data['layout']) && \is_array($data['layout'])) {
+            /** @var array<string,mixed> $rawLayout */
+            $rawLayout = $data['layout'];
+            $layout = $this->normalizeLayoutForEntity($rawLayout);
             $character->setLayout($layout);
         } else {
-            // simple server-side mapping for templates (you can replace by service)
-            $templates = $this->getAvailableTemplates();
-            if ($templateType && isset($templates[$templateType])) {
-                $character->setLayout($templates[$templateType]['layout']);
-            } else {
-                // default empty layout (just placeholders)
-                $character->setLayout($this->defaultEmptyLayout());
-            }
+            $templates = $this->loadTemplates();
+            $selected = $templateType && isset($templates[$templateType]) ? $templates[$templateType] : ($templates['blank'] ?? null);
+            $layoutSource = $selected && isset($selected['layout']) ? $selected['layout'] : $this->defaultEmptyLayout();
+            // layoutSource might be mixed; normalizeLayoutForEntity guards on type.
+            $layout = $this->normalizeLayoutForEntity($layoutSource);
+            $character->setLayout($layout);
         }
 
         // validate
         $violations = $this->validator->validate($character);
-        if (count($violations) > 0) {
+        if (\count($violations) > 0) {
             $errors = [];
             foreach ($violations as $v) {
                 $errors[] = [
@@ -97,7 +101,6 @@ class CharacterController extends AbstractController
 
         $id = $character->getId();
 
-        // Return 201 + object
         return $this->json([
             'id' => $id,
             'title' => $character->getTitle(),
@@ -107,62 +110,223 @@ class CharacterController extends AbstractController
         ], Response::HTTP_CREATED);
     }
 
-    private function getAvailableTemplates(): array
+    /**
+     * Normalize layout so that it matches the expected entity shape.
+     *
+     * Accepts mixed (templates or provided payload may be loosely typed).
+     *
+     * @return array<string,mixed>
+     */
+    private function normalizeLayoutForEntity(mixed $raw): array
     {
-        // minimal example mapping; keep in sync with front/src/data/templates.js
-        return [
-            'template1' => [
-                'label' => 'Modèle A',
-                'layout' => [
-                    'rows' => [
-                        [
-                            ['id'=>'s1','type'=>'Identité','width'=>200,'content'=>[],'collapsed'=>false],
-                            ['id'=>'s2','type'=>'Contact','width'=>200,'content'=>[],'collapsed'=>false],
-                            ['id'=>'s3','type'=>'Lore','width'=>400,'content'=>[],'collapsed'=>false],
-                            ['id'=>'s4','type'=>'Quêtes','width'=>400,'content'=>[],'collapsed'=>false],
-                            ['id'=>'s5','type'=>'NewbiePark','width'=>400,'content'=>[],'collapsed'=>false],
-                        ],
-                        [
-                            ['id'=>'s6','type'=>'empty','width'=>350,'content'=>null,'collapsed'=>true],
-                            ['id'=>'s7','type'=>'HautsFaits','width'=>400,'content'=>[],'collapsed'=>false],
-                            ['id'=>'s8','type'=>'Talents','width'=>400,'content'=>[],'collapsed'=>false],
-                            ['id'=>'s9','type'=>'Qualités','width'=>400,'content'=>[],'collapsed'=>false],
-                            ['id'=>'s10','type'=>'empty','width'=>350,'content'=>null,'collapsed'=>true],
-                        ],
-                        [
-                            ['id'=>'s11','type'=>'empty','width'=>400,'content'=>null,'collapsed'=>true],
-                            ['id'=>'s12','type'=>'Langues','width'=>200,'content'=>[],'collapsed'=>false],
-                            ['id'=>'s13','type'=>'empty','width'=>200,'content'=>null,'collapsed'=>true],
-                            ['id'=>'s14','type'=>'Hobbies','width'=>200,'content'=>[],'collapsed'=>false],
-                            ['id'=>'s15','type'=>'empty','width'=>400,'content'=>null,'collapsed'=>true],
-                        ]
-                    ]
-                ]
-            ],
-            // add template2 / template3 if needed
-        ];
+        $out = ['rows' => []];
+
+        if (!\is_array($raw)) {
+            return $out;
+        }
+
+        // $raw is array — we expect ['rows' => [...]] but guard thoroughly
+        if (!isset($raw['rows']) || !\is_array($raw['rows'])) {
+            return $out;
+        }
+
+        $seen = [];
+        foreach ($raw['rows'] as $rIdx => $row) {
+            if (!\is_array($row)) {
+                continue;
+            }
+            $newRow = [];
+            foreach ($row as $cIdx => $cell) {
+                if (!\is_array($cell)) {
+                    $cell = [];
+                }
+
+                $rawId = isset($cell['id']) && \is_string($cell['id']) ? $cell['id'] : 's'.($rIdx * 10 + $cIdx);
+                $id = $rawId;
+                $suffix = 0;
+                while (isset($seen[$id])) {
+                    $id = $rawId.'-'.(++$suffix);
+                }
+                $seen[$id] = true;
+
+                $newCell = [
+                    'id' => $id,
+                    'type' => isset($cell['type']) && \is_string($cell['type']) ? $cell['type'] : 'empty',
+                    'width' => $cell['width'] ?? null,
+                    'content' => \array_key_exists('content', $cell) ? $cell['content'] : (isset($cell['type']) && $cell['type'] === 'empty' ? null : []),
+                    'isCollapsed' => isset($cell['isCollapsed']) ? (bool) $cell['isCollapsed'] : (isset($cell['collapsed']) ? (bool) $cell['collapsed'] : true),
+                ];
+
+                $newRow[] = $newCell;
+            }
+            $out['rows'][] = $newRow;
+        }
+
+        return $out;
     }
 
+    /**
+     * Charge et normalise les templates depuis data/templates.json.
+     *
+     * Retourne une map clé => template (chaque template est un tableau associatif
+     * dont les clés sont des strings et les valeurs mixtes).
+     *
+     * @return array<string, array<string,mixed>>
+     */
+    private function loadTemplates(): array
+    {
+        $param = $this->getParameter('kernel.project_dir');
+
+        if (!\is_string($param)) {
+            $this->logger->warning('kernel.project_dir parameter is not a string', ['value' => $param]);
+
+            return [];
+        }
+
+        $projectDir = $param;
+        $path = $projectDir.'/data/templates.json';
+
+        if (!\file_exists($path)) {
+            $this->logger->warning('templates.json not found', ['path' => $path]);
+
+            return [];
+        }
+
+        $content = \file_get_contents($path);
+        if ($content === false) {
+            $this->logger->warning('Failed to read templates.json', ['path' => $path]);
+
+            return [];
+        }
+
+        try {
+            $decoded = \json_decode($content, true, 512, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            $this->logger->warning('Invalid JSON in templates.json', ['exception' => $e->getMessage()]);
+
+            return [];
+        }
+
+        if (!\is_array($decoded)) {
+            return [];
+        }
+
+        /** @var array<string, array<string,mixed>> $map */
+        $map = [];
+
+        // detect indexed or associative structure
+        $isIndexed = \array_values($decoded) === $decoded;
+
+        if ($isIndexed) {
+            foreach ($decoded as $item) {
+                if (!\is_array($item)) {
+                    continue;
+                }
+
+                // require a scalar 'key' field
+                if (!\array_key_exists('key', $item) || !\is_scalar($item['key'])) {
+                    continue;
+                }
+
+                /** @var array<string,mixed> $typedItem */
+                $typedItem = (array) $item;
+
+                // key explicitly cast after is_scalar check (satisfies phpstan)
+                $key = (string) $item['key'];
+                $map[$key] = $typedItem;
+            }
+        } else {
+            foreach ($decoded as $k => $item) {
+                if (!\is_string($k) || !\is_array($item)) {
+                    continue;
+                }
+
+                /** @var array<string,mixed> $typedItem */
+                $typedItem = (array) $item;
+
+                // ensure template has a 'key' string
+                if (!\array_key_exists('key', $typedItem) || !\is_scalar($typedItem['key'])) {
+                    $typedItem['key'] = $k;
+                } else {
+                    $typedItem['key'] = (string) $typedItem['key'];
+                }
+
+                $map[(string) $k] = $typedItem;
+            }
+        }
+
+        // normalize layout for each template (guarantee types inside)
+        foreach ($map as $tkey => &$tpl) {
+            if (!isset($tpl['layout']) || !\is_array($tpl['layout'])) {
+                $tpl['layout'] = ['rows' => []];
+            }
+            if (!isset($tpl['layout']['rows']) || !\is_array($tpl['layout']['rows'])) {
+                $tpl['layout']['rows'] = [];
+            }
+
+            $seen = [];
+            foreach ($tpl['layout']['rows'] as $rIdx => &$row) {
+                if (!\is_array($row)) {
+                    $row = [];
+                }
+                foreach ($row as $cIdx => &$cell) {
+                    if (!\is_array($cell)) {
+                        $cell = [];
+                    }
+                    $rawId = isset($cell['id']) && \is_string($cell['id']) ? $cell['id'] : 's'.($rIdx * 10 + $cIdx);
+                    $id = $rawId;
+                    $suffix = 0;
+                    while (isset($seen[$id])) {
+                        ++$suffix;
+                        $id = $rawId.'-'.$suffix;
+                    }
+                    $seen[$id] = true;
+                    $cell['id'] = $id;
+                    $cell['type'] = isset($cell['type']) && \is_string($cell['type']) ? $cell['type'] : 'empty';
+                    if (!\array_key_exists('content', $cell)) {
+                        $cell['content'] = $cell['type'] === 'empty' ? null : [];
+                    }
+                    $cell['isCollapsed'] = isset($cell['isCollapsed'])
+                        ? (bool) $cell['isCollapsed']
+                        : (isset($cell['collapsed']) ? (bool) $cell['collapsed'] : true);
+                    if (isset($cell['collapsed'])) {
+                        unset($cell['collapsed']);
+                    }
+                }
+            }
+            unset($cell, $row);
+
+            // cast template explicitly for phpstan
+            $tpl = (array) $tpl;
+        }
+        unset($tpl);
+
+        return $map;
+    }
+
+    /**
+     * @return array<mixed>
+     */
     private function defaultEmptyLayout(): array
     {
-        // fallback: create TOTAL_SLOTS = 15 placeholders with standard widths
         $rows = [];
         $slots = 15;
         $perRow = 5;
-        for ($r = 0; $r < ceil($slots / $perRow); $r++) {
+        for ($r = 0; $r < (int) \ceil($slots / $perRow); ++$r) {
             $row = [];
-            for ($c = 0; $c < $perRow; $c++) {
+            for ($c = 0; $c < $perRow; ++$c) {
                 $idx = $r * $perRow + $c + 1;
                 $row[] = [
                     'id' => 's'.$idx,
                     'type' => 'empty',
                     'width' => 295,
                     'content' => null,
-                    'collapsed' => true,
+                    'isCollapsed' => true,
                 ];
             }
             $rows[] = $row;
         }
+
         return ['rows' => $rows];
     }
 }
