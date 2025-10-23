@@ -23,8 +23,6 @@ class AuthControllerTest extends WebTestCase
         /** @var EntityManagerInterface $em */
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $this->em = $em;
-        // Exemple de purge (adapter le nom de table selon ta conf)
-        // $this->em->getConnection()->executeStatement('TRUNCATE TABLE user RESTART IDENTITY CASCADE');
     }
 
     public function testRegisterAndMe(): void
@@ -50,14 +48,12 @@ class AuthControllerTest extends WebTestCase
         $content = $resp->getContent();
         $status = $resp->getStatusCode();
 
-        // affiche le body en cas d'échec pour debugging (var_export renvoie toujours une string)
         $this->assertSame(
             201,
             $status,
             \sprintf('Expected 201 but got %d. Response body: %s', $status, \var_export($content, true))
         );
 
-        // on s'assure que le contenu est bien une string avant json_decode
         $this->assertIsString($content, 'Response content must be a string');
         /** @var string $content */
         $content = $content;
@@ -70,11 +66,28 @@ class AuthControllerTest extends WebTestCase
         $id = $data['id'];
 
         // assert user a confirmationToken ok
-        $this->assertNotNull($this->em);
+        $this->assertNotNull($this->em, 'EntityManager not available in test.');
+        $this->em->clear();
         $user = $this->em->getRepository(\App\Entity\User::class)->find($id);
         $this->assertNotNull($user);
         $this->assertNotNull($user->getConfirmationToken(), 'Expected confirmation token to be set.');
         $this->assertFalse($user->isConfirmed());
+
+        // --- simulate user clicking the confirmation link by calling /api/confirm?token=...
+        $token = $user->getConfirmationToken();
+        $this->assertIsString($token, 'Confirmation token should be a string for the test');
+
+        $this->client->request('GET', '/api/confirm?token='.\urlencode($token));
+        $confirmResp = $this->client->getResponse();
+        $this->assertSame(200, $confirmResp->getStatusCode(), 'Confirmation failed: '.\var_export($confirmResp->getContent(), true));
+
+        // RELOAD the user from the EntityManager to get a managed, up-to-date instance
+        // (avoid refresh() on a possibly detached instance)
+        $this->assertNotNull($this->em, 'EntityManager not available in test.');
+        $this->em->clear();
+        $user = $this->em->getRepository(\App\Entity\User::class)->find($id);
+        $this->assertInstanceOf(\App\Entity\User::class, $user);
+        $this->assertTrue($user->isConfirmed(), 'User should be confirmed after hitting confirm endpoint');
 
         // 2) Se loguer / récupérer token
         $loginBody = \json_encode([
@@ -128,8 +141,6 @@ class AuthControllerTest extends WebTestCase
 
         $respContent = $client->getResponse()->getContent();
         $this->assertSame(201, $client->getResponse()->getStatusCode(), 'Register failed: '.\var_export($respContent, true));
-
-        // la vérification que la mock du mailer a bien été appelée est faite par l'expectation précédente
     }
 
     protected function tearDown(): void

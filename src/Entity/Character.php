@@ -6,7 +6,15 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
 use App\Repository\CharacterRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
@@ -15,10 +23,14 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ORM\Table(name: 'character')]
 #[ApiResource(
     normalizationContext: ['groups' => ['character:read']],
-    denormalizationContext: ['groups' => ['character:write']],
-    // operations par défaut : GET collection, POST collection, GET item, PUT, DELETE
-    // tu peux personnaliser security ici si besoin
+    denormalizationContext: ['groups' => ['character:write']]
 )]
+#[GetCollection(security: "is_granted('PUBLIC_ACCESS')")]
+#[Post(security: "is_granted('ROLE_USER')")]
+#[Get(security: "is_granted('PUBLIC_ACCESS')")]
+#[Put(security: "is_granted('ROLE_USER')")]
+#[Patch(security: "is_granted('ROLE_USER')")]
+#[Delete(security: "is_granted('ROLE_USER')")]
 class Character
 {
     #[ORM\Id]
@@ -66,9 +78,17 @@ class Character
     #[Groups(['character:read', 'character:write'])]
     private ?array $avatar = null;
 
+    /**
+     * @ORM\OneToMany(targetEntity=Section::class, mappedBy="character", cascade={"persist","remove"}, orphanRemoval=true)
+     *
+     * @var Collection<int,Section>|null
+     */
+    private ?Collection $sections = null;
+
     public function __construct()
     {
         $this->layout = [];
+        $this->sections = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -160,6 +180,50 @@ class Character
     public function setAvatar(?array $avatar): self
     {
         $this->avatar = $avatar;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int,Section>
+     */
+    public function getSections(): Collection
+    {
+        if ($this->sections === null) {
+            // lazy init if constructor was not called (proxy / deserialization case)
+            $this->sections = new ArrayCollection();
+        }
+
+        return $this->sections;
+    }
+
+    public function addSection(Section $section): static
+    {
+        // ensure initialized
+        if ($this->sections === null) {
+            $this->sections = new ArrayCollection();
+        }
+
+        if (!$this->sections->contains($section)) {
+            $this->sections->add($section);
+            $section->setCharacter($this);
+        }
+
+        return $this;
+    }
+
+    public function removeSection(Section $section): static
+    {
+        if ($this->sections === null) {
+            $this->sections = new ArrayCollection();
+        }
+
+        if ($this->sections->contains($section)) {
+            $this->sections->removeElement($section);
+            if ($section->getCharacter() === $this) {
+                $section->setCharacter(null);
+            }
+        }
 
         return $this;
     }

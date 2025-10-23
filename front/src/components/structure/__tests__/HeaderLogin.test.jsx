@@ -14,7 +14,7 @@ afterEach(() => {
   jest.resetAllMocks();
 });
 
-test('successful login sets token and redirects to /', async () => {
+test('successful login sets token and redirects to /dashboard', async () => {
   // mock /api/login_check then /api/me
   global.fetch
     .mockResolvedValueOnce({
@@ -31,11 +31,15 @@ test('successful login sets token and redirects to /', async () => {
     });
 
   render(
-    <MemoryRouter initialEntries={['/somepage']}>
+    <MemoryRouter initialEntries={['/']}>
       <AuthProvider>
         <Header />
         <Routes>
-          <Route path="/" element={<div data-testid="home">HOME</div>} />
+          <Route path="/" element={<div />} />
+          {/* simulate the dashboard route used by Header on successful login */}
+          <Route path="/dashboard" element={<div data-testid="home">HOME</div>} />
+          {/* catch-all to avoid "No routes matched location" warnings */}
+          <Route path="*" element={<div />} />
         </Routes>
       </AuthProvider>
     </MemoryRouter>,
@@ -52,8 +56,8 @@ test('successful login sets token and redirects to /', async () => {
   // submit
   fireEvent.click(screen.getByRole('button', { name: /connexion/i }));
 
-  // wait for redirect
-  await waitFor(() => expect(screen.getByTestId('home')).toBeInTheDocument());
+  // wait for redirect to /dashboard
+  await waitFor(() => expect(screen.getByTestId('home')).toBeInTheDocument(), { timeout: 1500 });
 
   // token stored
   expect(localStorage.getItem('cv_token')).toBe('abc123');

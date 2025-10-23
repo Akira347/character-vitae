@@ -110,7 +110,7 @@ class AuthController extends AbstractController
             $confirmUrl = \rtrim($this->frontendUrl, '/').'/confirm?token='.\urlencode($token);
             $emailMessage = (new Email())
                 ->from('noreply@example.com')
-                ->to((string) $email)
+                ->to($email)
                 ->subject('Confirmez votre compte')
                 ->text("Merci de confirmer votre compte : $confirmUrl");
 
@@ -176,6 +176,60 @@ class AuthController extends AbstractController
         $this->logger->info('Confirm: success', ['userId' => $user->getId()]);
 
         return $this->json(['message' => 'Compte confirmé. Vous pouvez maintenant vous connecter.'], Response::HTTP_OK);
+    }
+
+    /**
+     * Resend user confirmation email.
+     *
+     * POST /api/resend-confirmation
+     */
+    #[Route('/resend-confirmation', name: 'resend_confirmation', methods: ['POST'])]
+    public function resendConfirmation(Request $request): JsonResponse
+    {
+        try {
+            $data = $request->toArray();
+        } catch (\Throwable $e) {
+            return $this->json(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $rawEmail = $data['email'] ?? null;
+        $email = \is_scalar($rawEmail) ? \trim((string) $rawEmail) : null;
+        if (!$email) {
+            return $this->json(['error' => 'Missing email'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $repo = $this->em->getRepository(User::class);
+        /** @var User|null $user */
+        $user = $repo->findOneBy(['email' => $email]);
+
+        if (!$user) {
+            // Ne pas révéler que l'email n'existe pas — renvoyer succès neutre
+            return $this->json(['message' => 'If the email exists, a confirmation mail has been sent.'], Response::HTTP_OK);
+        }
+
+        if ($user->isConfirmed()) {
+            return $this->json(['message' => 'Compte déjà confirmé.'], Response::HTTP_OK);
+        }
+
+        // regen token
+        $token = \bin2hex(\random_bytes(16));
+        $user->setConfirmationToken($token);
+        $this->em->flush();
+
+        // send email (comme dans register)
+        try {
+            $confirmUrl = \rtrim($this->frontendUrl, '/').'/confirm?token='.\urlencode($token);
+            $emailMessage = (new Email())
+                ->from('noreply@example.com')
+                ->to((string) $email)
+                ->subject('Confirmez votre compte')
+                ->text("Merci de confirmer votre compte : $confirmUrl");
+            $this->mailer->send($emailMessage);
+        } catch (\Throwable $e) {
+            $this->logger->error('Failed to send confirmation email', ['exception' => $e->getMessage()]);
+        }
+
+        return $this->json(['message' => 'Un e-mail de confirmation a été renvoyé si l’adresse existe.'], Response::HTTP_OK);
     }
 
     /**

@@ -8,9 +8,6 @@ import { AuthContext } from '../contexts/AuthContext';
 
 export default function CharacterEdit() {
   const { id } = useParams();
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  const created = params.get('created') === '1';
   const { token } = useContext(AuthContext);
 
   const [loading, setLoading] = useState(true);
@@ -60,8 +57,6 @@ export default function CharacterEdit() {
   return (
     // utiliser Container fluid pour éviter marges latérales ajoutées par container non-fluid
     <Container fluid className="py-4 px-0">
-      {created && <Alert variant="success">Fiche créée avec succès</Alert>}
-
       <div>
         <Dashboard characterId={id} initialCharacter={character} />
       </div>

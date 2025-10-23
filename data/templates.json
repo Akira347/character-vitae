@@ -17,27 +17,32 @@
                     {
                         "id": "s1",
                         "type": "Identité",
-                        "width": 200
+                        "width": 200,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s2",
                         "type": "Contact",
-                        "width": 200
+                        "width": 200,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s3",
                         "type": "Lore",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s4",
                         "type": "Quêtes",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s5",
                         "type": "NewbiePark",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     }
                 ],
                 [
@@ -49,17 +54,20 @@
                     {
                         "id": "s7",
                         "type": "HautsFaits",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s8",
                         "type": "Talents",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s9",
                         "type": "Qualités",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s10",
@@ -76,7 +84,8 @@
                     {
                         "id": "s12",
                         "type": "Langues",
-                        "width": 200
+                        "width": 200,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s13",
@@ -86,7 +95,8 @@
                     {
                         "id": "s14",
                         "type": "Hobbies",
-                        "width": 200
+                        "width": 200,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s15",
@@ -107,12 +117,14 @@
                     {
                         "id": "s1",
                         "type": "Identité",
-                        "width": 300
+                        "width": 300,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s2",
                         "type": "Lore",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s3",
@@ -122,19 +134,22 @@
                     {
                         "id": "s4",
                         "type": "NewbiePark",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s5",
                         "type": "Qualités",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     }
                 ],
                 [
                     {
                         "id": "s6",
                         "type": "HautsFaits",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s7",
@@ -144,7 +159,8 @@
                     {
                         "id": "s8",
                         "type": "Quêtes",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s9",
@@ -154,7 +170,8 @@
                     {
                         "id": "s10",
                         "type": "Talents",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     }
                 ],
                 [
@@ -166,7 +183,8 @@
                     {
                         "id": "s12",
                         "type": "Langues",
-                        "width": 300
+                        "width": 300,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s13",
@@ -176,7 +194,8 @@
                     {
                         "id": "s14",
                         "type": "Hobbies",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s15",
@@ -197,22 +216,26 @@
                     {
                         "id": "s1",
                         "type": "empty",
-                        "width": 380
+                        "width": 380,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s2",
                         "type": "Lore",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s3",
                         "type": "NewbiePark",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s4",
                         "type": "HautsFaits",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s5",
@@ -229,17 +252,20 @@
                     {
                         "id": "s7",
                         "type": "Quêtes",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s8",
                         "type": "empty",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s9",
                         "type": "Talents",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s10",
@@ -256,17 +282,20 @@
                     {
                         "id": "s12",
                         "type": "Qualités",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s13",
                         "type": "Hobbies",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s14",
                         "type": "Langues",
-                        "width": 400
+                        "width": 400,
+                        "isCollapsed": false
                     },
                     {
                         "id": "s15",

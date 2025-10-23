@@ -4,6 +4,7 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    app.demo_email: '%env(string:DEMO_EMAIL)%'
 
 services:
     # default configuration for services in *this* file
@@ -13,6 +14,7 @@ services:
         public: false
         bind:
             string $frontendUrl: '%env(string:FRONTEND_URL)%'
+            string $demoEmail: '%app.demo_email%'            
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name
@@ -54,3 +56,14 @@ services:
         autowire: true
         autoconfigure: false
         public: false
+
+    App\State\OwnerProcessor:
+        autowire: true
+        autoconfigure: true
+        public: true
+        shared: true
+        arguments:
+            $security: '@security.helper'
+            $logger: '@logger'
+        tags:
+            - { name: 'api_platform.state_processor', priority: 100 }

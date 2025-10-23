@@ -115,8 +115,6 @@ class CharacterController extends AbstractController
      *
      * Accepts mixed (templates or provided payload may be loosely typed).
      *
-     * @param mixed $raw
-     *
      * @return array<string,mixed>
      */
     private function normalizeLayoutForEntity(mixed $raw): array
@@ -186,7 +184,7 @@ class CharacterController extends AbstractController
         }
 
         $projectDir = $param;
-        $path = $projectDir . '/data/templates.json';
+        $path = $projectDir.'/data/templates.json';
 
         if (!\file_exists($path)) {
             $this->logger->warning('templates.json not found', ['path' => $path]);
@@ -224,25 +222,36 @@ class CharacterController extends AbstractController
                 if (!\is_array($item)) {
                     continue;
                 }
-                if (!isset($item['key']) || !\is_string($item['key'])) {
+
+                // require a scalar 'key' field
+                if (!\array_key_exists('key', $item) || !\is_scalar($item['key'])) {
                     continue;
                 }
-                // cast to array<string,mixed> for phpstan
+
                 /** @var array<string,mixed> $typedItem */
                 $typedItem = (array) $item;
-                $map[$typedItem['key']] = $typedItem;
+
+                // key explicitly cast after is_scalar check (satisfies phpstan)
+                $key = (string) $item['key'];
+                $map[$key] = $typedItem;
             }
         } else {
-            foreach ($decoded as $key => $item) {
-                if (!\is_string($key) || !\is_array($item)) {
+            foreach ($decoded as $k => $item) {
+                if (!\is_string($k) || !\is_array($item)) {
                     continue;
                 }
+
                 /** @var array<string,mixed> $typedItem */
                 $typedItem = (array) $item;
-                if (!isset($typedItem['key']) || !\is_string($typedItem['key'])) {
-                    $typedItem['key'] = $key;
+
+                // ensure template has a 'key' string
+                if (!\array_key_exists('key', $typedItem) || !\is_scalar($typedItem['key'])) {
+                    $typedItem['key'] = $k;
+                } else {
+                    $typedItem['key'] = (string) $typedItem['key'];
                 }
-                $map[$key] = $typedItem;
+
+                $map[(string) $k] = $typedItem;
             }
         }
 
@@ -287,10 +296,8 @@ class CharacterController extends AbstractController
             }
             unset($cell, $row);
 
-            // cast template to array<string,mixed> explicitly for phpstan
-            /** @var array<string,mixed> $typedTpl */
-            $typedTpl = (array) $tpl;
-            $tpl = $typedTpl;
+            // cast template explicitly for phpstan
+            $tpl = (array) $tpl;
         }
         unset($tpl);
 

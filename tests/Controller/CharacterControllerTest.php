@@ -30,6 +30,7 @@ class CharacterControllerTest extends WebTestCase
             ->setFirstName('Test')
             ->setLastName('User');
         $user->setPassword(\password_hash('password123', PASSWORD_BCRYPT));
+        $user->setIsConfirmed(true); // <-- important: mark user as confirmed for login
         $em->persist($user);
         $em->flush();
 
@@ -46,13 +47,14 @@ class CharacterControllerTest extends WebTestCase
         $content = (string) $client->getResponse()->getContent();
         $data = \json_decode($content, true);
 
-        // indiquer à phpstan que $data est bien un tableau associatif à ce point du test
-        /** @var array<string,mixed> $data */
+        /* @var array<string,mixed> $data */
         $this->assertIsArray($data);
         $this->assertArrayHasKey('token', $data);
 
-        // extraire le token de façon sûre
-        $token = (string) ($data['token'] ?? '');
+        $token = '';
+        if (\array_key_exists('token', $data) && (\is_scalar($data['token']) || $data['token'] === null)) {
+            $token = (string) ($data['token'] ?? '');
+        }
 
         // create character
         $payload2 = \json_encode([
@@ -63,7 +65,7 @@ class CharacterControllerTest extends WebTestCase
 
         $client->request('POST', '/api/characters', [], [], [
             'CONTENT_TYPE' => 'application/json',
-            'HTTP_AUTHORIZATION' => 'Bearer ' . $token,
+            'HTTP_AUTHORIZATION' => 'Bearer '.$token,
         ], $payload2);
 
         $this->assertEquals(201, $client->getResponse()->getStatusCode());
@@ -72,7 +74,7 @@ class CharacterControllerTest extends WebTestCase
         $this->assertIsArray($result);
         $this->assertArrayHasKey('id', $result);
 
-        // cleanup: re-fetch managed entity (évite "Detached entity" si l'instance est détachée)
+        // cleanup
         $userId = $user->getId();
         if ($userId !== null) {
             $persistedUser = $em->find(User::class, $userId);

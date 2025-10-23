@@ -1,3 +1,4 @@
+// src/App.jsx
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -6,6 +7,8 @@ import Dashboard from './pages/Dashboard';
 import NotFoundPage from './pages/NotFoundPage';
 import Confirm from './pages/Confirm';
 import CharacterEdit from './pages/CharacterEdit';
+import Home from './pages/Home';
+import DemoPage from './pages/DemoPage';
 
 /**
  * Point d’entrée de l’application.
@@ -19,7 +22,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
+            <Route index element={<Home />} />
+            <Route path="demo" element={<DemoPage />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="/dashboard/characters/:id" element={<CharacterEdit />} />
             <Route path="/confirm" element={<Confirm />} />
