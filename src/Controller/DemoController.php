@@ -1,4 +1,5 @@
 <?php
+
 // src/Controller/DemoController.php
 declare(strict_types=1);
 
@@ -42,7 +43,7 @@ final class DemoController extends AbstractController
                 ->where('c.owner = :owner')
                 ->andWhere($qb->expr()->eq('LOWER(c.title)', ':demoTitle'))
                 ->setParameter('owner', $demoUser)
-                ->setParameter('demoTitle', mb_strtolower('Demo'))
+                ->setParameter('demoTitle', \mb_strtolower('Demo'))
                 ->setMaxResults(1)
                 ->orderBy('c.id', 'ASC');
 
