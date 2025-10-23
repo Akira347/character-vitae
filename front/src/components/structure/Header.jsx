@@ -1,4 +1,3 @@
-// src/components/structure/Header.jsx
 import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
@@ -24,6 +23,7 @@ export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, login, logout, token, resendConfirmation } = useContext(AuthContext) || {};
+  console.debug('Header render: AuthContext', { user, token: !!token });
 
   // login/signup modal
   const [show, setShow] = useState(false);
@@ -39,7 +39,7 @@ export default function Header() {
 
   // characters
   const [characters, setCharacters] = useState([]);
-  const [selectedCharId, setSelectedCharId] = useState(null);
+  const [selectedCharId, setSelectedCharId] = useState(null); // always string or null
   const [loadingChars, setLoadingChars] = useState(false);
   const [charsError, setCharsError] = useState(null);
 
@@ -54,90 +54,149 @@ export default function Header() {
   // Save button dirty state (listened from Dashboard)
   const [isDirty, setIsDirty] = useState(false);
 
-  // Robust id extractor
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Robust id extractor -> ALWAYS returns string or null
   const extractId = (item) => {
     if (!item) return null;
     if (typeof item.id === 'number' || typeof item.id === 'string') {
-      return item.id;
+      return String(item.id);
     }
     const atId = item['@id'] ?? item['@id'];
     if (typeof atId === 'string') {
       const parts = atId.split('/');
       const last = parts[parts.length - 1];
       if (last) {
-        const n = Number(last);
-        return Number.isNaN(n) ? last : n;
+        return String(last);
       }
     }
     return null;
   };
 
-  const loadCharacters = useCallback(async () => {
-    if (!user) {
-      setCharacters([]);
-      setSelectedCharId(null);
-      return [];
-    }
-    setLoadingChars(true);
-    setCharsError(null);
-    try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const data = await fetchJson('/apip/characters', { method: 'GET', headers });
+  const loadCharacters = useCallback(
+    async (preferredId = null, signal = undefined) => {
+      console.debug('loadCharacters: start', { preferredId, selectedCharId, user: !!user, token: !!token });
 
-      let list = [];
-      if (Array.isArray(data)) {
-        list = data;
-      } else if (data && Array.isArray(data.member)) {
-        list = data.member;
-      } else if (data && Array.isArray(data['hydra:member'])) {
-        list = data['hydra:member'];
-      } else if (data && Array.isArray(data['members'])) {
-        list = data['members'];
-      } else if (data && typeof data === 'object') {
-        list = Object.values(data);
+      if (mountedRef.current) setLoadingChars(true);
+      if (mountedRef.current) setCharsError(null);
+
+      if (!user) {
+        console.debug('loadCharacters: no user, aborting.');
+        if (mountedRef.current) {
+          setCharacters([]);
+          setSelectedCharId(null);
+          setLoadingChars(false);
+        }
+        return [];
       }
 
-      const normalized = list
-        .map((c) => {
-          const id = extractId(c);
-          const title =
-            typeof c?.title === 'string' && c.title.length ? c.title : id ? `#${id}` : undefined;
-          return { raw: c, id, title };
-        })
-        .filter((x) => x.id !== null && x.id !== undefined);
+      try {
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        console.debug('loadCharacters: fetching /apip/characters', { headers });
+        const data = await fetchJson('/apip/characters', { method: 'GET', headers, signal });
 
-      setCharacters(normalized);
+        console.debug('loadCharacters: raw response from fetchJson', { data });
 
-      // choose selected id: prefer last used in localStorage, else first available
-      const lastSelected = localStorage.getItem('cv_selected_char');
-      let toSelect = null;
-      if (normalized.length > 0) {
-        if (lastSelected && normalized.find((n) => String(n.id) === String(lastSelected))) {
-          toSelect = String(lastSelected);
+        const dataRaw = data?.data ?? data;
+        console.debug('loadCharacters: normalized dataRaw', { dataRaw });
+
+        let list = [];
+        if (Array.isArray(dataRaw)) {
+          list = dataRaw;
+        } else if (dataRaw && Array.isArray(dataRaw.member)) {
+          list = dataRaw.member;
+        } else if (dataRaw && Array.isArray(dataRaw['hydra:member'])) {
+          list = dataRaw['hydra:member'];
+        } else if (dataRaw && Array.isArray(dataRaw['members'])) {
+          list = dataRaw['members'];
+        } else if (dataRaw && typeof dataRaw === 'object') {
+          list = Object.values(dataRaw);
+        }
+
+        const normalized = list
+          .map((c) => {
+            const id = extractId(c);
+            const title =
+              typeof c?.title === 'string' && c.title.length ? c.title : id ? `#${id}` : undefined;
+            return { raw: c, id, title };
+          })
+          .filter((x) => x.id !== null && x.id !== undefined);
+
+        console.debug('loadCharacters: normalized entries', { normalizedCount: normalized.length, sample: normalized.slice(0, 5) });
+
+        if (mountedRef.current) {
+          setCharacters(normalized);
         } else {
-          toSelect = String(normalized[0].id);
+          console.debug('loadCharacters: instance not mounted any more, skipping setCharacters');
         }
-        setSelectedCharId(toSelect);
-        // navigate to the selected character route (only if we're not already there)
-        if (!location.pathname.startsWith(`/dashboard/characters/${toSelect}`)) {
-          navigate(`/dashboard/characters/${toSelect}`);
-        }
-        // persist last selected so next session reopens it
-        localStorage.setItem('cv_selected_char', String(toSelect));
-      } else {
-        setSelectedCharId(null);
-        localStorage.removeItem('cv_selected_char');
-      }
 
-      return normalized;
-    } catch (err) {
-      setCharsError(err?.message || 'Impossible de charger les fiches.');
-      setCharacters([]);
-      return [];
-    } finally {
-      setLoadingChars(false);
-    }
-  }, [user, token, selectedCharId, navigate, location.pathname]);
+        const pref = preferredId ? String(preferredId) : null;
+        const currentSel = selectedCharId ? String(selectedCharId) : null;
+        const lastSelected = localStorage.getItem('cv_selected_char');
+
+        let toSelect = null;
+        if (pref && normalized.find((n) => String(n.id) === pref)) {
+          toSelect = pref;
+        } else if (currentSel && normalized.find((n) => String(n.id) === currentSel)) {
+          toSelect = currentSel;
+        } else if (lastSelected && normalized.find((n) => String(n.id) === String(lastSelected))) {
+          toSelect = String(lastSelected);
+        } else if (normalized.length > 0) {
+          toSelect = String(normalized[0].id);
+        } else {
+          toSelect = null;
+        }
+
+        console.debug('loadCharacters: decided toSelect', { toSelect, pref, currentSel, lastSelected });
+
+        if (mountedRef.current) {
+          if (toSelect !== null) {
+            setSelectedCharId(String(toSelect));
+            localStorage.setItem('cv_selected_char', String(toSelect));
+            try {
+              if (!location.pathname.startsWith(`/dashboard/characters/${toSelect}`)) {
+                navigate(`/dashboard/characters/${toSelect}`);
+              }
+            } catch (e) {
+              // ignore
+            }
+          } else {
+            setSelectedCharId(null);
+            localStorage.removeItem('cv_selected_char');
+          }
+        } else {
+          console.debug('loadCharacters: skipping selection/navigate because not mounted');
+        }
+
+        return normalized;
+      } catch (err) {
+        if (err && err.name === 'AbortError') {
+          console.debug('loadCharacters: aborted', err);
+        } else {
+          if (mountedRef.current) setCharsError(err?.message || 'Impossible de charger les fiches.');
+          console.error('loadCharacters error', err);
+        }
+        if (mountedRef.current) setCharacters([]);
+        return [];
+      } finally {
+        if (mountedRef.current) setLoadingChars(false);
+        console.debug('loadCharacters: finished (loadingChars false)');
+      }
+    },
+    [user, token, navigate],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadCharacters(null, controller.signal).catch(() => { });
+    return () => controller.abort();
+  }, [loadCharacters]);
 
   useEffect(() => {
     const onSessionExpired = () => {
@@ -150,7 +209,6 @@ export default function Header() {
           },
         }),
       );
-      // optionally open login modal:
       setView('login');
       setShow(true);
     };
@@ -159,20 +217,14 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
-    loadCharacters();
-  }, [loadCharacters]);
-
-  useEffect(() => {
     const onOpenSignup = (ev) => {
       setView('signup');
       setShow(true);
-      // éventuellement focus / preset des champs si ev.detail fourni
     };
     window.addEventListener('open-signup', onOpenSignup);
     return () => window.removeEventListener('open-signup', onOpenSignup);
   }, []);
 
-  // events : notify, created, updated, deleted, dirty-changed
   useEffect(() => {
     const onNotify = (ev) => {
       const d = (ev && ev.detail) || {};
@@ -182,15 +234,18 @@ export default function Header() {
     };
 
     const onCreated = async (ev) => {
-      // refresh & select created id
-      const id = ev?.detail?.id ?? null;
-      const list = await loadCharacters();
+      const idRaw = ev?.detail?.id ?? null;
+      const id = idRaw ? String(idRaw) : null;
+      const controller = new AbortController();
+      await loadCharacters(id, controller.signal);
       if (id) {
-        setSelectedCharId(id);
-        navigate(`/dashboard/characters/${id}`);
-      } else if (list && list.length > 0) {
-        setSelectedCharId(list[0].id);
-        navigate(`/dashboard/characters/${list[0].id}`);
+        setSelectedCharId(String(id));
+        localStorage.setItem('cv_selected_char', String(id));
+        try {
+          navigate(`/dashboard/characters/${id}`);
+        } catch (e) {
+          // ignore
+        }
       }
       window.dispatchEvent(
         new CustomEvent('notify', {
@@ -200,7 +255,7 @@ export default function Header() {
     };
 
     const onUpdated = async () => {
-      await loadCharacters();
+      await loadCharacters(null);
       window.dispatchEvent(
         new CustomEvent('notify', {
           detail: { message: 'Fiche mise à jour', variant: 'success', timeout: 2000 },
@@ -208,15 +263,13 @@ export default function Header() {
       );
     };
 
-    const onDeleted = async () => {
-      const list = await loadCharacters();
-      if (list && list.length > 0) {
-        setSelectedCharId(list[0].id);
-        navigate(`/dashboard/characters/${list[0].id}`);
-      } else {
-        setSelectedCharId(null);
-        navigate('/');
-      }
+    const onDeleted = async (ev) => {
+      const list = await loadCharacters(null);
+      window.dispatchEvent(
+        new CustomEvent('notify', {
+          detail: { message: 'Fiche supprimée', variant: 'info', timeout: 2000 },
+        }),
+      );
     };
 
     const onDirtyChanged = (ev) => {
@@ -255,7 +308,6 @@ export default function Header() {
         navigate('/dashboard');
         setTimeout(() => loadCharacters(), 200);
       } else {
-        // detect unconfirmed flag returned by AuthContext.login
         setLoginUnconfirmed(Boolean(result.unconfirmed));
         let msg = 'E-mail ou mot de passe incorrect';
         if (result.body) {
@@ -281,15 +333,15 @@ export default function Header() {
   };
 
   const onSelectCharacter = (ev) => {
-    const id = ev.target.value;
+    const id = ev.target.value ? String(ev.target.value) : null;
     setSelectedCharId(id);
     if (id) {
+      localStorage.setItem('cv_selected_char', String(id));
       navigate(`/dashboard/characters/${id}`);
     }
   };
 
   const onHeaderSave = async () => {
-    // if no characters exist, create default "Mon CV" first
     if (!characters || characters.length === 0) {
       try {
         const headers = {
@@ -301,7 +353,6 @@ export default function Header() {
           description: '',
           templateType: 'blank',
         };
-        // fetchJson attend body string — on envoie JSON stringifié
         const res = await fetchJson('/api/characters', {
           method: 'POST',
           headers,
@@ -319,7 +370,6 @@ export default function Header() {
         return;
       }
     }
-    // then dispatch save-character which Dashboard listens to
     window.dispatchEvent(new CustomEvent('save-character'));
   };
 
@@ -327,12 +377,15 @@ export default function Header() {
     setShowNewCharacter(false);
     setModalInitialData(null);
     setModalMode('create');
-    setTimeout(() => loadCharacters(), 300);
+    setTimeout(() => {
+      if (!characters || characters.length === 0) {
+        loadCharacters();
+      }
+    }, 400);
   };
 
-  // Edit button handler
   const onEditClick = () => {
-    if (!selectedCharId) return; // if none, button is hidden anyway
+    if (!selectedCharId) return;
     const found = characters.find((c) => String(c.id) === String(selectedCharId));
     setModalMode('edit');
     setModalInitialData(found ? found.raw : { id: selectedCharId });
@@ -348,24 +401,27 @@ export default function Header() {
           </Navbar.Brand>
 
           <Nav className="ms-auto align-items-center">
-            {/* ----- BOUTON PROFIL DE DEMONSTRATION (toujours visible) ----- */}
-            <div className="me-2 d-none d-md-block">
-              <button
-                type="button"
-                onClick={() => navigate('/demo')}
-                title="Voir un profil de démonstration"
-                className="btn-demo"
-              >
-                Profil de démonstration
-              </button>
-            </div>
+            {/* Profil démo : affichée uniquement si NON connecté */}
+            {!user && (
+              <div className="me-2 d-none d-md-block">
+                <button
+                  type="button"
+                  onClick={() => navigate('/demo')}
+                  title="Voir un profil de démonstration"
+                  className="btn-demo"
+                >
+                  Profil de démonstration
+                </button>
+              </div>
+            )}
 
             {user && (
               <>
                 <div className="me-2 d-flex align-items-center">
+                  {/* Sauvegarder : applique le même style 'btn-demo' et devient doré quand isDirty */}
                   <Button
                     size="sm"
-                    variant={isDirty ? 'warning' : 'outline-light'}
+                    className="btn-demo"
                     onClick={onHeaderSave}
                     aria-label="Sauvegarder"
                     style={{
@@ -386,14 +442,7 @@ export default function Header() {
                     <Form.Select
                       size="sm"
                       value={selectedCharId ?? ''}
-                      onChange={(ev) => {
-                        const id = ev.target.value;
-                        setSelectedCharId(id);
-                        if (id) {
-                          localStorage.setItem('cv_selected_char', String(id));
-                          navigate(`/dashboard/characters/${id}`);
-                        }
-                      }}
+                      onChange={onSelectCharacter}
                       aria-label="Choisir fiche"
                       style={{ minWidth: 200 }}
                     >
@@ -438,7 +487,6 @@ export default function Header() {
               </>
             )}
 
-            {/* plume / login */}
             {!user ? (
               <Nav.Link
                 onClick={openLogin}
@@ -462,7 +510,7 @@ export default function Header() {
         </Container>
       </Navbar>
 
-      {/* login modal (inchangé) */}
+      {/* login modal */}
       <Modal show={show} onHide={() => setShow(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>{view === 'login' ? 'Se connecter' : "S'inscrire"}</Modal.Title>
@@ -483,7 +531,6 @@ export default function Header() {
                           const resp = await resendConfirmation(loginEmail);
                           if (resp && resp.ok) {
                             setLoginError(null);
-                            // show success temporary message
                             setInlineNotify({
                               message: resp.body?.message ?? 'E-mail renvoyé',
                               variant: 'success',

@@ -13,12 +13,11 @@ use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
 use App\Repository\CharacterRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
-use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
-use App\Entity\Section;
 
 #[ORM\Entity(repositoryClass: CharacterRepository::class)]
 #[ORM\Table(name: 'character')]
@@ -82,9 +81,9 @@ class Character
     /**
      * @ORM\OneToMany(targetEntity=Section::class, mappedBy="character", cascade={"persist","remove"}, orphanRemoval=true)
      *
-     * @var Collection<int,Section>
+     * @var Collection<int,Section>|null
      */
-    private Collection $sections;
+    private ?Collection $sections = null;
 
     public function __construct()
     {
@@ -190,11 +189,21 @@ class Character
      */
     public function getSections(): Collection
     {
+        if ($this->sections === null) {
+            // lazy init if constructor was not called (proxy / deserialization case)
+            $this->sections = new ArrayCollection();
+        }
+
         return $this->sections;
     }
 
     public function addSection(Section $section): static
     {
+        // ensure initialized
+        if ($this->sections === null) {
+            $this->sections = new ArrayCollection();
+        }
+
         if (!$this->sections->contains($section)) {
             $this->sections->add($section);
             $section->setCharacter($this);
@@ -205,6 +214,10 @@ class Character
 
     public function removeSection(Section $section): static
     {
+        if ($this->sections === null) {
+            $this->sections = new ArrayCollection();
+        }
+
         if ($this->sections->contains($section)) {
             $this->sections->removeElement($section);
             if ($section->getCharacter() === $this) {

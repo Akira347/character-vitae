@@ -58,5 +58,12 @@ services:
         public: false
 
     App\State\OwnerProcessor:
+        autowire: true
+        autoconfigure: true
+        public: true
+        shared: true
         arguments:
             $security: '@security.helper'
+            $logger: '@logger'
+        tags:
+            - { name: 'api_platform.state_processor', priority: 100 }

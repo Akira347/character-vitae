@@ -23,6 +23,12 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
+      },
+      '/apip': {
+        target: 'http://localhost:8000', // port du backend Symfony
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/apip/, '/apip') // si tu veux garder /apip
       }
     }
   }

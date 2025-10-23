@@ -1,4 +1,5 @@
 <?php
+
 // src/Repository/SectionRepository.php
 declare(strict_types=1);
 
@@ -14,8 +15,8 @@ use Doctrine\Persistence\ManagerRegistry;
  *
  * @method Section|null find($id, $lockMode = null, $lockVersion = null)
  * @method Section|null findOneBy(array<string,mixed> $criteria = [], array<string,string>|null $orderBy = null)
- * @method Section[]    findAll()
- * @method Section[]    findBy(array<string,mixed> $criteria = [], array<string,string>|null $orderBy = null, int|null $limit = null, int|null $offset = null)
+ * @method Section[] findAll()
+ * @method Section[] findBy(array<string,mixed> $criteria = [], array<string,string>|null $orderBy = null, int|null $limit = null, int|null $offset = null)
  */
 final class SectionRepository extends ServiceEntityRepository
 {
@@ -26,8 +27,6 @@ final class SectionRepository extends ServiceEntityRepository
 
     /**
      * Retourne les sections d'un Character ordonnées par position asc.
-     *
-     * @param Character $character
      *
      * @return Section[]
      */
@@ -47,8 +46,6 @@ final class SectionRepository extends ServiceEntityRepository
 
     /**
      * Retourne une section par character & serverId si existant.
-     *
-     * @param Character $character
      */
     public function findOneByCharacterAndServerId(Character $character, string $serverId): ?Section
     {
@@ -69,14 +66,13 @@ final class SectionRepository extends ServiceEntityRepository
     /**
      * Retourne les sections d'un Character filtrées par types.
      *
-     * @param Character $character
-     * @param string[]  $types
+     * @param string[] $types
      *
      * @return Section[]
      */
     public function findByCharacterAndTypes(Character $character, array $types): array
     {
-        if (count($types) === 0) {
+        if (\count($types) === 0) {
             return [];
         }
 

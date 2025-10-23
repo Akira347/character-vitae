@@ -23,9 +23,9 @@ final class DemoController extends AbstractController
     #[Route('/apip/character/demo', name: 'apip_demo_character', methods: ['GET'])]
     public function demoCharacter(): JsonResponse
     {
-        // si la config n'est pas renseignée on retourne la demo embarquée
         if ($this->demoEmail === null || $this->demoEmail === '') {
             $this->logger->warning('Demo email not configured');
+
             return $this->json($this->embeddedDemo());
         }
 
@@ -35,10 +35,22 @@ final class DemoController extends AbstractController
         $demoUser = $userRepo->findOneBy(['email' => $this->demoEmail]);
 
         if ($demoUser instanceof \App\Entity\User) {
-            // prefer a character titled 'Demo', otherwise first character of the user
-            $demoChar = $characterRepo->findOneBy(['owner' => $demoUser, 'title' => 'Demo']);
+            // Prefer exact title 'Demo' (case-insensitive). Use query builder to be precise.
+            $qb = $this->em->createQueryBuilder();
+            $qb->select('c')
+                ->from(Character::class, 'c')
+                ->where('c.owner = :owner')
+                ->andWhere($qb->expr()->eq('LOWER(c.title)', ':demoTitle'))
+                ->setParameter('owner', $demoUser)
+                ->setParameter('demoTitle', mb_strtolower('Demo'))
+                ->setMaxResults(1)
+                ->orderBy('c.id', 'ASC');
+
+            $demoChar = $qb->getQuery()->getOneOrNullResult();
+
+            // fallback: first character of the user
             if (!$demoChar) {
-                $demoChar = $characterRepo->findOneBy(['owner' => $demoUser]);
+                $demoChar = $characterRepo->findOneBy(['owner' => $demoUser], ['id' => 'ASC']);
             }
 
             if ($demoChar instanceof Character) {
@@ -47,7 +59,6 @@ final class DemoController extends AbstractController
                     'title' => $demoChar->getTitle(),
                     'description' => $demoChar->getDescription(),
                     'templateType' => $demoChar->getTemplateType(),
-                    // getLayout() renvoie déjà un array (pas de null attendu)
                     'layout' => $demoChar->getLayout(),
                     'avatar' => $demoChar->getAvatar(),
                 ]);

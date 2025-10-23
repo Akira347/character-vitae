@@ -1,4 +1,5 @@
 <?php
+
 // src/State/OwnerProcessor.php
 declare(strict_types=1);
 
@@ -12,19 +13,16 @@ use App\Entity\User;
 use Psr\Log\LoggerInterface;
 
 /**
- * Processor simple qui :
- *  - assigne l'owner courant lors de la création d'un Character si absent
- *  - empêche la modification/création de Section si l'utilisateur n'est pas propriétaire du Character
+ * Processor qui ne fait que la vérification des Sections.
+ * La création/persistence des Character est gérée par CharacterController.
  *
  * @implements ProcessorInterface<mixed, mixed>
  */
 final class OwnerProcessor implements ProcessorInterface
 {
     /**
-     * Security object is accepted as a generic object here to avoid hard dependency problems
-     * during container compilation in some environments. It must implement getUser(): ?User.
-     *
-     * @var object|null
+     * Security object is accepted as a generic object here to avoid hard dependency
+     * problems during container compilation in some environments. It must implement getUser(): ?User.
      */
     private ?object $security;
 
@@ -34,26 +32,27 @@ final class OwnerProcessor implements ProcessorInterface
     }
 
     /**
-     * @param mixed $data
+     * Process incoming data (called by API Platform).
+     *
+     * @param array<string,mixed> $uriVariables
+     * @param array<string,mixed> $context
      */
-    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): mixed
+    public function process(mixed $data, ?Operation $operation = null, array $uriVariables = [], array $context = []): mixed
     {
+        // safe retrieval of user: only call getUser() if the provided security object supports it
         $user = null;
-        if ($this->security !== null && method_exists($this->security, 'getUser')) {
-            $user = $this->security->getUser();
-        }
-
-        // Pour Character : si on crée (owner null) -> affecte owner = user courant
-        if ($data instanceof Character) {
-            if ($user instanceof User && $data->getOwner() === null) {
-                $data->setOwner($user);
-                $this->logger->debug('OwnerProcessor: assigned owner to Character', [
-                    'userId' => $user->getId(),
-                ]);
+        if ($this->security !== null && \method_exists($this->security, 'getUser')) {
+            $maybeUser = $this->security->getUser();
+            if ($maybeUser instanceof User) {
+                $user = $maybeUser;
             }
         }
 
-        // Pour Section : vérifier que le user est bien propriétaire du Character lié
+        $this->logger->debug('OwnerProcessor (lite) called', [
+            'class' => \is_object($data) ? \get_class($data) : \gettype($data),
+            'user' => $user?->getId(),
+        ]);
+
         if ($data instanceof Section) {
             $character = $data->getCharacter();
             if ($character === null) {
@@ -69,24 +68,20 @@ final class OwnerProcessor implements ProcessorInterface
                 throw new \RuntimeException('Unauthenticated user cannot modify sections.');
             }
 
-            $ownerId = $owner->getId();
-            $userId = $user->getId();
-
-            if ($ownerId === null || $userId === null || $ownerId !== $userId) {
+            if ($owner->getId() !== $user->getId()) {
                 throw new \RuntimeException('Not allowed to modify section of this character.');
             }
         }
 
-        // On retourne l'entité modifiée (API Platform poursuivra la persistance)
+        // nothing to persist here, we only validate/inspect
         return $data;
     }
 
     /**
-     * @param mixed $data
-     * @param array<mixed> $context
+     * @param array<string,mixed> $context
      */
     public function supports(mixed $data, array $context = []): bool
     {
-        return $data instanceof Character || $data instanceof Section;
+        return $data instanceof Section;
     }
 }

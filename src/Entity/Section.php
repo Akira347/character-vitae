@@ -1,16 +1,17 @@
 <?php
+
 // src/Entity/Section.php
 declare(strict_types=1);
 
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
-use ApiPlatform\Metadata\Patch;
-use ApiPlatform\Metadata\Delete;
 use App\Repository\SectionRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -103,6 +104,7 @@ class Section
     public function setCharacter(?Character $character): static
     {
         $this->character = $character;
+
         return $this;
     }
 
@@ -114,6 +116,7 @@ class Section
     public function setServerId(?string $serverId): static
     {
         $this->serverId = $serverId;
+
         return $this;
     }
 
@@ -125,6 +128,7 @@ class Section
     public function setType(string $type): static
     {
         $this->type = $type;
+
         return $this;
     }
 
@@ -142,6 +146,7 @@ class Section
     public function setContent(?array $content): static
     {
         $this->content = $content;
+
         return $this;
     }
 
@@ -153,6 +158,7 @@ class Section
     public function setWidth(?int $width): static
     {
         $this->width = $width;
+
         return $this;
     }
 
@@ -164,6 +170,7 @@ class Section
     public function setPosition(int $position): static
     {
         $this->position = $position;
+
         return $this;
     }
 
@@ -175,6 +182,7 @@ class Section
     public function setIsCollapsed(bool $isCollapsed): static
     {
         $this->isCollapsed = $isCollapsed;
+
         return $this;
     }
 
@@ -186,6 +194,7 @@ class Section
     public function setUpdatedAt(?\DateTimeImmutable $updatedAt): static
     {
         $this->updatedAt = $updatedAt;
+
         return $this;
     }
 

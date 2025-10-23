@@ -113,7 +113,7 @@ class AuthController extends AbstractController
                 ->to($email)
                 ->subject('Confirmez votre compte')
                 ->text("Merci de confirmer votre compte : $confirmUrl");
-        
+
             $this->mailer->send($emailMessage);
         } catch (\Throwable $e) {
             $this->logger->error('Failed to send confirmation email', ['exception' => $e->getMessage()]);

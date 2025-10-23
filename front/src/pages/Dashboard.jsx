@@ -35,17 +35,13 @@ export default function Dashboard({
   const { token } = useContext(AuthContext) || {};
   const TOTAL_SLOTS = 15;
 
-  /**
-   * Convertit une "layout" (format legacy qui contient rows) en tableau plat
-   * d'objets section tel que le Dashboard s'attend.
-   */
   const parseLayoutToSections = useCallback((layout) => {
     if (!layout || !Array.isArray(layout.rows)) {
       return Array.from({ length: TOTAL_SLOTS }).map((_, i) => ({
         id: `empty-${i}`,
         type: 'empty',
         content: null,
-        collapsed: true,
+        collapsed: false, // default false
       }));
     }
 
@@ -75,7 +71,7 @@ export default function Dashboard({
             : cell.type === 'empty'
               ? null
               : [],
-          collapsed: !!(cell.isCollapsed ?? cell.collapsed ?? true),
+          collapsed: !!(cell.isCollapsed ?? cell.collapsed ?? false), // default false
           width: cell.width ?? undefined,
           originalId: rawId,
         });
@@ -88,37 +84,27 @@ export default function Dashboard({
         id: `empty-${out.length}`,
         type: 'empty',
         content: null,
-        collapsed: true,
+        collapsed: false,
       });
     }
 
     return out;
   }, []);
 
-  /**
-   * --- NOUVEAU ---
-   * Convertit une collection de Section (backend entity) en tableau utilisable
-   * par le Dashboard (même shape que parseLayoutToSections produce).
-   *
-   * Chaque item backend attend : { id, serverId, type, content, width, position, isCollapsed }
-   * On ordonne par position croissant (si présent), sinon par id.
-   */
   const buildSectionsFromCollection = useCallback((sectionsCollection) => {
     if (!Array.isArray(sectionsCollection) || sectionsCollection.length === 0) {
       return Array.from({ length: TOTAL_SLOTS }).map((_, i) => ({
         id: `empty-${i}`,
         type: 'empty',
         content: null,
-        collapsed: true,
+        collapsed: false,
       }));
     }
 
-    // copy and sort by position if provided
     const copy = [...sectionsCollection].sort((a, b) => {
       const pa = typeof a.position === 'number' ? a.position : 0;
       const pb = typeof b.position === 'number' ? b.position : 0;
       if (pa !== pb) return pa - pb;
-      // fallback stable ordering by id
       if (a.id && b.id) return Number(a.id) - Number(b.id);
       return 0;
     });
@@ -132,25 +118,21 @@ export default function Dashboard({
         id,
         type: typeof s.type === 'string' ? s.type : 'empty',
         content: s.content ?? (s.type === 'empty' ? null : []),
-        collapsed: !!(s.isCollapsed ?? true),
+        collapsed: !!(s.isCollapsed ?? false), // default false
         width: typeof s.width === 'number' ? s.width : s.width ? Number(s.width) : undefined,
         originalId: serverId,
-        // keep backend id for later reference if needed
         backendId: s.id ?? null,
         position: typeof s.position === 'number' ? s.position : null,
       });
     }
 
-    // pad with empty slots up to TOTAL_SLOTS
     while (out.length < TOTAL_SLOTS) {
-      out.push({ id: `empty-${out.length}`, type: 'empty', content: null, collapsed: true });
+      out.push({ id: `empty-${out.length}`, type: 'empty', content: null, collapsed: false });
     }
 
     return out;
   }, []);
 
-  // initial sections state: prefer initialCharacter.sections (backend Section entities),
-  // else fallback to initialCharacter.layout (legacy).
   const [sections, setSectionsRaw] = useState(() => {
     if (initialCharacter?.sections && Array.isArray(initialCharacter.sections)) {
       return buildSectionsFromCollection(initialCharacter.sections);
@@ -162,7 +144,7 @@ export default function Dashboard({
       id: `empty-${i}`,
       type: 'empty',
       content: null,
-      collapsed: true,
+      collapsed: false,
     }));
   });
 
@@ -176,11 +158,32 @@ export default function Dashboard({
     }
   }, [initialCharacter, parseLayoutToSections, buildSectionsFromCollection]);
 
+  const sectionsToLayout = useCallback((secs) => {
+    const rows = [];
+    for (let i = 0; i < secs.length; i += 5) {
+      const chunk = secs.slice(i, i + 5);
+      const row = chunk.map((s) => {
+        const rawId = s.originalId ?? (s.id ? String(s.id).replace(/^sec-/, '') : null);
+        return {
+          id: rawId ?? `s${i + 1}`,
+          type: s.type,
+          width: typeof s.width === 'number' ? s.width : s.width ?? undefined,
+          content: s.content === undefined ? (s.type === 'empty' ? null : []) : s.content,
+          isCollapsed: !!s.collapsed, // preserve collapsed
+        };
+      });
+      rows.push(row);
+    }
+    return { rows };
+  }, []);
+
   const [isDirty, setIsDirty] = useState(false);
   useUnsavedWarning(isDirty, 'Modifications non sauvegardées — quitter sans sauvegarder ?');
 
+  // wrapper that marks dirty and dispatches event
   const setSections = (updater) => {
     setIsDirty(true);
+    window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: true } }));
     setSectionsRaw((prev) => (typeof updater === 'function' ? updater(prev) : updater));
   };
 
@@ -199,12 +202,12 @@ export default function Dashboard({
     if (!initialCharacter) return;
     if (JSON.stringify(avatarData) !== JSON.stringify(initialCharacter.avatar)) {
       setIsDirty(true);
+      window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: true } }));
     }
   }, [avatarData, initialCharacter]);
 
   const [activeTab, setActiveTab] = useState('sections');
 
-  // Drag/drop helpers — only initialised if not readOnly
   const { handleDragEnd, activeId, setActiveId } = useDragDrop(sections, setSections);
   const sensor = useSensor(PointerSensor);
 
@@ -232,7 +235,7 @@ export default function Dashboard({
       const idx = prev.findIndex((s) => s.id === id);
       if (idx === -1) return prev;
       const copy = [...prev];
-      copy[idx] = { id: `empty-${idx}`, type: 'empty', content: null, collapsed: true };
+      copy[idx] = { id: `empty-${idx}`, type: 'empty', content: null, collapsed: false };
       return copy;
     });
   };
@@ -241,16 +244,86 @@ export default function Dashboard({
     setSections((secs) => secs.map((s) => (s.id === id ? { ...s, collapsed: !s.collapsed } : s)));
   };
 
-  // Save — unchanged (header triggers); Dashboard only emits save-character event listened elsewhere
-  const saveCharacter = async () => {
-    // no-op here; Header triggers save via event
-    return;
-  };
+  // Save — Dashboard listens to header 'save-character' event
+  useEffect(() => {
+    const onSaveCharacter = async () => {
+      if (!characterId) return;
+      const layout = sectionsToLayout(sections);
+      const body = { layout };
+      try {
+        const headers = {
+          'Content-Type': 'application/merge-patch+json',
+          Accept: 'application/ld+json',
+        };
+        if (token) headers.Authorization = `Bearer ${token}`;
 
-  // Editing state (local SectionForm)
+        await fetchJson(`/apip/characters/${characterId}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify(body),
+        });
+
+        setIsDirty(false);
+        window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: false } }));
+        window.dispatchEvent(new CustomEvent('character-updated', { detail: { id: String(characterId) } }));
+        window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Disposition sauvegardée', variant: 'success', timeout: 2000 } }));
+      } catch (err) {
+        console.error('save-character failed', err);
+        window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Erreur sauvegarde', variant: 'danger', timeout: 4000 } }));
+      }
+    };
+
+    window.addEventListener('save-character', onSaveCharacter);
+    return () => window.removeEventListener('save-character', onSaveCharacter);
+  }, [characterId, sections, sectionsToLayout, token]);
+
+  const reloadCharacterFromServer = useCallback(async (idToLoad) => {
+    if (!idToLoad) return;
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const json = await fetchJson(`/apip/characters/${idToLoad}`, { method: 'GET', headers });
+      const data = json?.data ?? json;
+      if (!data) return;
+      if (Array.isArray(data.sections) && data.sections.length > 0) {
+        setSectionsRaw(buildSectionsFromCollection(data.sections));
+      } else if (data.layout) {
+        setSectionsRaw(parseLayoutToSections(data.layout));
+      }
+      if (data.avatar) {
+        setAvatarData(data.avatar);
+      }
+      setIsDirty(false);
+      window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: false } }));
+    } catch (err) {
+      console.error('reloadCharacterFromServer error', err);
+    }
+  }, [token, buildSectionsFromCollection, parseLayoutToSections]);
+
+  useEffect(() => {
+    const onCharacterUpdated = (ev) => {
+      const id = ev?.detail?.id ?? null;
+      if (!id) return;
+      if (String(id) === String(characterId)) {
+        reloadCharacterFromServer(id);
+      }
+    };
+    const onCharacterLayoutChanged = (ev) => {
+      const id = ev?.detail?.id ?? null;
+      if (!id) return;
+      if (String(id) === String(characterId)) {
+        reloadCharacterFromServer(id);
+      }
+    };
+    window.addEventListener('character-updated', onCharacterUpdated);
+    window.addEventListener('character-layout-changed', onCharacterLayoutChanged);
+    return () => {
+      window.removeEventListener('character-updated', onCharacterUpdated);
+      window.removeEventListener('character-layout-changed', onCharacterLayoutChanged);
+    };
+  }, [characterId, reloadCharacterFromServer]);
+
   const [editing, setEditing] = useState({ show: false, sectionId: null });
 
-  // Helper: render sections (used in both readOnly and interactive mode)
   const renderSections = () =>
     sections.map((sec, idx) => (
       <SectionContainer
@@ -283,18 +356,15 @@ export default function Dashboard({
       </SectionContainer>
     ));
 
-  // If readOnly: render a static layout without DnD wrappers
-  // If readOnly: render a static layout without DnD wrappers
   if (readOnly) {
     return (
       <div className="dashboard-readonly">
         <Row className="gy-4">
           <Col xs={12} md={3} lg={2}>
             <div className="section-sidebar">
-              {/* Si demoOnlyAvatar : on affiche directement AvatarInfoPanel sans tab-switcher */}
               {demoOnlyAvatar ? (
                 <div style={{ padding: 10 }}>
-                  <AvatarInfoPanel data={avatarData} onEditAvatar={() => {}} />
+                  <AvatarInfoPanel data={avatarData} onEditAvatar={() => { }} />
                 </div>
               ) : (
                 <>
@@ -316,7 +386,7 @@ export default function Dashboard({
                     {activeTab === 'sections' ? (
                       <div style={{ padding: 10 }}>Aperçu — lecture seule</div>
                     ) : (
-                      <AvatarInfoPanel data={avatarData} onEditAvatar={() => {}} />
+                      <AvatarInfoPanel data={avatarData} onEditAvatar={() => { }} />
                     )}
                   </div>
                 </>
@@ -336,7 +406,6 @@ export default function Dashboard({
     );
   }
 
-  // Interactive mode (original behaviour with DnD)
   return (
     <DndContext
       sensors={useSensors(sensor)}
@@ -431,6 +500,8 @@ export default function Dashboard({
               onSave={(newAvatarData) => {
                 setAvatarData(newAvatarData);
                 setAvatarEditing(false);
+                setIsDirty(true);
+                window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: true } }));
               }}
               onCancel={() => setAvatarEditing(false)}
             />

@@ -99,13 +99,6 @@ export default function SectionContainer({
         <div className="section-handle right" onMouseDown={(e) => onMouseDown('right', e)} />
       )}
 
-      {/* header drag handle */}
-      {!readOnly ? (
-        <span className="drag-handle" {...listeners} {...attributes} title="Glisser pour déplacer">
-          ⠿
-        </span>
-      ) : null}
-
       <div
         className="section-top"
         onClick={() => onToggle(id)}
