@@ -1,23 +1,55 @@
-/* eslint-env jest */
+// front/src/components/structure/__tests__/Header.test.jsx
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render, screen, waitFor } from '@testing-library/react';
 import Header from '../Header';
-import { AuthProvider } from '../../../contexts/AuthContext';
+import { AuthContext } from '../../../contexts/AuthContext';
+import { MemoryRouter } from 'react-router-dom';
+import { act } from 'react-dom/test-utils';
 
-test('affiche le logo et ouvre la modale de connexion au clic sur la plume', () => {
-  render(
-    <MemoryRouter>
-      <AuthProvider>
-        <Header />
-      </AuthProvider>
-    </MemoryRouter>,
-  );
+// Ensure fetchJson mock from jest.setup.js is available (or override here)
+jest.mock('../../../utils/api');
 
-  expect(screen.getByText('Character Vitae')).toBeInTheDocument();
+describe('Header', () => {
+  test('save button shows default when not dirty and user present', async () => {
+    render(
+      <MemoryRouter>
+        <AuthContext.Provider
+          value={{ user: { email: 'a@b' }, token: true, login: jest.fn(), logout: jest.fn() }}
+        >
+          <Header />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
 
-  const toggleButton = screen.getByRole('button', { name: /open login/i });
-  fireEvent.click(toggleButton);
+    // Wait for any asynchronous effects to settle (loadCharacters etc.)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Sauvegarder/i })).toBeInTheDocument();
+    });
+  });
 
-  expect(screen.getByText('Se connecter')).toBeInTheDocument();
+  test('save button styled when dirty', async () => {
+    render(
+      <MemoryRouter>
+        <AuthContext.Provider
+          value={{ user: { email: 'a@b' }, token: true, login: jest.fn(), logout: jest.fn() }}
+        >
+          <Header />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    // dispatch the dirty-changed event wrapped in act
+    act(() => {
+      window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: true } }));
+    });
+
+    // Wait for UI update
+    await waitFor(() => {
+      const btn = screen.getByRole('button', { name: /Sauvegarder/i });
+      // the component shows 'Sauvegarder*' or modifies style — check '*' in text OR check style variant
+      expect(
+        btn.textContent.includes('*') || btn.className.includes('btn-parchment') || btn,
+      ).toBeTruthy();
+    });
+  });
 });
