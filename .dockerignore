@@ -1,0 +1,96 @@
+# flyctl launch added from .gitignore
+
+public/front
+
+###> symfony/framework-bundle ###
+.env.local
+.env.local.php
+.env.*.local
+config/secrets/prod/prod.decrypt.private.php
+public/bundles
+var
+vendor
+node_modules
+###< symfony/framework-bundle ###
+
+###> phpunit/phpunit ###
+phpunit.xml
+**/.phpunit.result.cache
+###< phpunit/phpunit ###
+
+###> symfony/phpunit-bridge ###
+**/.phpunit.result.cache
+phpunit.xml
+###< symfony/phpunit-bridge ###
+
+###> symfony/asset-mapper ###
+public/assets
+assets/vendor
+###< symfony/asset-mapper ###
+
+###> friendsofphp/php-cs-fixer ###
+.php-cs-fixer.php
+.php-cs-fixer.cache
+###< friendsofphp/php-cs-fixer ###
+
+###> lexik/jwt-authentication-bundle ###
+config/jwt/*.pem
+###< lexik/jwt-authentication-bundle ###
+
+# Docker
+.docker
+docker-compose.override.yml
+
+# VSCode
+.vscode
+
+# Mac
+**/.DS_Store
+
+# Windows
+**/Thumbs.db
+**/ehthumbs.db
+
+# Logs et caches divers
+**/*.log
+
+# Node modules
+front/node_modules
+
+# Build output
+front/dist
+front/build
+
+# Logs
+front/npm-debug.log*
+front/arn-debug.log*
+front/yarn-error.log*
+
+# flyctl launch added from .husky/_/.gitignore
+.husky/_/**/*
+
+# flyctl launch added from vendor/psr/container/.gitignore
+vendor/psr/container/**/composer.lock
+vendor/psr/container/**/composer.phar
+vendor/psr/container/vendor
+
+# flyctl launch added from vendor/psr/event-dispatcher/.gitignore
+vendor/psr/event-dispatcher/vendor
+vendor/psr/event-dispatcher/**/composer.lock
+
+# flyctl launch added from vendor/sebastian/version/.gitignore
+vendor/sebastian/version/.php_cs.cache
+vendor/sebastian/version/.idea
+
+# flyctl launch added from vendor/twig/extra-bundle/.gitignore
+vendor/twig/extra-bundle/**/vendor
+vendor/twig/extra-bundle/**/var
+vendor/twig/extra-bundle/**/composer.lock
+vendor/twig/extra-bundle/**/phpunit.xml
+vendor/twig/extra-bundle/**/.phpunit.result.cache
+
+# flyctl launch added from vendor/willdurand/negotiation/.gitignore
+vendor/willdurand/negotiation/vendor
+vendor/willdurand/negotiation/**/composer.lock
+vendor/willdurand/negotiation/**/.phpunit.result.cache
+fly.toml

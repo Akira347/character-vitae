@@ -1,39 +1,42 @@
 # docker/Dockerfile.prod
-
-# builder stage...
-FROM composer:2.6 AS builder
-WORKDIR /app
-COPY . /app
-
-# tell composer / scripts that this is a prod build
-ENV APP_ENV=prod
-ENV APP_DEBUG=0
-ENV COMPOSER_ALLOW_SUPERUSER=1
-
-RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts --optimize-autoloader
-
-# docker/Dockerfile.prod (runtime minimal pour built-in server)
-FROM php:8.3-cli
-
-# system deps (identique)
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    git unzip zip libpq-dev libonig-dev libxml2-dev libzip-dev libpng-dev libicu-dev \
-  && docker-php-ext-install pdo pdo_pgsql mbstring xml intl zip opcache \
-  && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /srv/app
-
-# Copy vendor and app from builder stage (si tu gardes builder)
-COPY --from=builder /app/vendor /srv/app/vendor
-COPY --from=builder /app /srv/app
-
-COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-RUN chown -R www-data:www-data /srv/app || true
-
-EXPOSE 8080
-
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["php","-S","0.0.0.0:8080","-t","public"]
-
+# -------- builder --------
+  FROM composer:2.6 AS builder
+  WORKDIR /app
+  COPY composer.json composer.lock symfony.lock ./
+  ENV COMPOSER_ALLOW_SUPERUSER=1
+  RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts --optimize-autoloader
+  
+  # copy source
+  COPY . /app
+  
+  # -------- runtime --------
+  FROM php:8.3-fpm
+  
+  # system deps + nginx install
+  RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      nginx \
+      git unzip zip libpq-dev libonig-dev libxml2-dev libzip-dev libpng-dev libicu-dev \
+    && docker-php-ext-install pdo pdo_pgsql mbstring xml intl zip opcache \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+  
+  # copy app and vendor from builder
+  WORKDIR /srv/app
+  COPY --from=builder /app /srv/app
+  COPY --from=builder /app/vendor /srv/app/vendor
+  
+  # nginx site conf (will be added next)
+  COPY docker/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
+  
+  # docker entrypoint + jwt writer
+  COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+  RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+  
+  # set ownership & perms so php-fpm (www-data) can write cache/logs
+  RUN chown -R www-data:www-data /srv/app || true \
+  && chmod -R 775 /srv/app/var || true
+  
+  EXPOSE 8080
+  
+  ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+  # Start php-fpm (daemonize) then nginx (foreground)
+  CMD ["sh", "-c", "php-fpm -D && nginx -g 'daemon off;'"]
