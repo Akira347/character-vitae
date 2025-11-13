@@ -33,11 +33,11 @@ services:
         tags:
             - { name: kernel.event_listener, event: kernel.exception }
 
-    App\EventListener\CspListener:
-        arguments:
-            $policy: "default-src 'self'; img-src 'self' data: https://your-cdn.example; script-src 'self' 'sha256-...';"
-        tags:
-            - { name: kernel.event_listener, event: kernel.response, method: onKernelResponse }
+    #App\EventListener\CspListener:
+    #    arguments:
+    #        $policy: "default-src 'self'; img-src 'self' data: https://your-cdn.example; script-src 'self' 'sha256-...';"
+    #    tags:
+    #        - { name: kernel.event_listener, event: kernel.response, method: onKernelResponse }
 
     # JwtDecorator décore le factory d'API Platform
     App\OpenApi\JwtDecorator:

@@ -1,38 +1,20 @@
 // src/components/section/SectionForm.jsx
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { Modal, Button, Form } from 'react-bootstrap';
+import { Modal, Button, Form, Alert } from 'react-bootstrap';
 
-/**
- * Remplace les espaces et tirets d'une chaîne pour la normaliser.
- *
- * @param {string} s — Chaîne d’entrée
- * @returns {string} Chaîne normalisée sans espace ni tiret
- */
+/* normalize helper as before */
 const normalize = (s) => s.replace(/\s|-/g, '').toLowerCase();
 
-/**
- * Formulaire modale pour éditer une section (mono-entrée ou multi-entrée).
- *
- * @param {object} props                      Les props du composant
- * @param {boolean} props.show                Affiche la modale si true
- * @param {string} props.type                 Type de section à éditer
- * @param {object|Array} [props.initialData]  Données initiales du formulaire
- * @param {Function} props.onSave             Callback avec formData à l’enregistrement
- * @param {Function} props.onCancel           Callback pour fermer sans sauvegarder
- * @returns {JSX.Element}                     Élement React représentant la modale SectionForm
- */
 export default function SectionForm({ show, type, initialData, onSave, onCancel }) {
-  // Types à traiter en « multi »
   const MULTI = ['qualités', 'langues', 'hobbies', 'hautsfaits', 'talents'].map(normalize);
-
-  // Détection robuste
   const isMulti = MULTI.includes(normalize(type || ''));
 
-  // On met à jour localement quand type ou initialData changent
   const [formData, setFormData] = useState(isMulti ? [] : {});
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    setError(null);
     if (isMulti) {
       setFormData(Array.isArray(initialData) ? initialData : []);
     } else {
@@ -47,12 +29,12 @@ export default function SectionForm({ show, type, initialData, onSave, onCancel 
       { name: 'nickname', label: 'Pseudo' },
       { name: 'job', label: 'Poste ou Poste recherché', required: true },
       { name: 'speciality', label: 'Spécialité' },
-      { name: 'level', label: 'Niveau' },
+      { name: 'level', label: 'Niveau' }, // facultatif
     ],
     Lore: [{ name: 'lore', label: 'Lore', as: 'textarea', required: true, minLength: 20 }],
     NewbiePark: [
-      { name: 'start', label: 'Date de début', type: 'date' },
-      { name: 'end', label: 'Date de fin', type: 'date', required: true },
+      { name: 'start', label: 'Date de début', type: 'date', required: true },
+      { name: 'end', label: 'Date de fin', type: 'date' },
       { name: 'title', label: 'Titre', required: true },
       { name: 'location', label: 'Établissement' },
     ],
@@ -80,14 +62,102 @@ export default function SectionForm({ show, type, initialData, onSave, onCancel 
     ],
     Hobbies: [{ name: 'hobby', label: 'Hobby', required: true }],
   };
+
   const fields = fieldsByType[type] || [];
+
+  const cleanObject = (obj) => {
+    // remove keys with empty string/null/undefined
+    const out = {};
+    Object.keys(obj).forEach((k) => {
+      const v = obj[k];
+      if (v === null || v === undefined) return;
+      if (typeof v === 'string' && v.trim() === '') return;
+      out[k] = v;
+    });
+    return out;
+  };
+
+  const cleanData = (data) => {
+    if (Array.isArray(data)) {
+      // remove empty entries and clean each object
+      const arr = data
+        .map((it) => (typeof it === 'object' && it !== null ? cleanObject(it) : null))
+        .filter((it) => it && Object.keys(it).length > 0);
+      return arr;
+    }
+    if (typeof data === 'object' && data !== null) {
+      return cleanObject(data);
+    }
+    return data;
+  };
+
+  const validate = () => {
+    // if no input at all, allow save (means "Aucun contenu")
+    const hasAny = isMulti
+      ? Array.isArray(formData) &&
+        formData.length > 0 &&
+        formData.some((it) => Object.keys(cleanObject(it)).length > 0)
+      : Object.keys(cleanObject(formData)).length > 0;
+    if (!hasAny) return true;
+
+    // otherwise enforce required fields
+    if (isMulti) {
+      for (const item of formData) {
+        const cleaned = cleanObject(item || {});
+        // for multi types, if item is empty skip it
+        if (Object.keys(cleaned).length === 0) continue;
+        for (const f of fields) {
+          if (f.required) {
+            if (
+              !cleaned[f.name] ||
+              (typeof cleaned[f.name] === 'string' && String(cleaned[f.name]).trim() === '')
+            ) {
+              setError(`Champ requis manquant : ${f.label}`);
+              return false;
+            }
+            if (f.minLength && String(cleaned[f.name]).length < f.minLength) {
+              setError(`Le champ ${f.label} doit contenir au moins ${f.minLength} caractères.`);
+              return false;
+            }
+          }
+        }
+      }
+    } else {
+      const cleaned = cleanObject(formData || {});
+      // if cleaned empty -> ok
+      if (Object.keys(cleaned).length === 0) return true;
+      for (const f of fields) {
+        if (f.required) {
+          if (
+            !cleaned[f.name] ||
+            (typeof cleaned[f.name] === 'string' && String(cleaned[f.name]).trim() === '')
+          ) {
+            setError(`Champ requis manquant : ${f.label}`);
+            return false;
+          }
+          if (f.minLength && String(cleaned[f.name]).length < f.minLength) {
+            setError(`Le champ ${f.label} doit contenir au moins ${f.minLength} caractères.`);
+            return false;
+          }
+        }
+      }
+    }
+    setError(null);
+    return true;
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((fd) => ({ ...fd, [name]: value }));
   };
 
-  const handleSubmit = () => onSave(formData);
+  const handleSubmit = () => {
+    setError(null);
+    if (!validate()) return;
+    const cleaned = cleanData(formData);
+    // If cleaned is empty ({} or []), we pass empty to parent so it can interpret as no content
+    onSave(cleaned);
+  };
 
   return (
     <Modal show={show} onHide={onCancel} centered>
@@ -95,8 +165,8 @@ export default function SectionForm({ show, type, initialData, onSave, onCancel 
         <Modal.Title>Éditer la section « {type} »</Modal.Title>
       </Modal.Header>
       <Modal.Body>
+        {error && <Alert variant="danger">{error}</Alert>}
         {isMulti ? (
-          // 🔒 On mappe seulement si formData est vraiment un array
           Array.isArray(formData) &&
           formData.map((item, idx) => (
             <Form key={idx} className="mb-3">
@@ -104,7 +174,7 @@ export default function SectionForm({ show, type, initialData, onSave, onCancel 
                 <Form.Group key={f.name} className="mb-3">
                   <Form.Label>
                     {f.label}
-                    {f.required && '*'}
+                    {f.required && ' *'}
                   </Form.Label>
                   <Form.Control
                     name={f.name}
@@ -114,7 +184,7 @@ export default function SectionForm({ show, type, initialData, onSave, onCancel 
                     onChange={(e) => {
                       const val = e.target.value;
                       setFormData((fd) => {
-                        const copy = [...fd];
+                        const copy = Array.isArray(fd) ? [...fd] : [];
                         copy[idx] = { ...copy[idx], [f.name]: val };
                         return copy;
                       });
@@ -132,7 +202,7 @@ export default function SectionForm({ show, type, initialData, onSave, onCancel 
               <Form.Group key={f.name} className="mb-3">
                 <Form.Label>
                   {f.label}
-                  {f.required && '*'}
+                  {f.required && ' *'}
                 </Form.Label>
                 <Form.Control
                   name={f.name}
