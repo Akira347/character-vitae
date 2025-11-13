@@ -12,7 +12,7 @@ export default defineConfig({
   plugins: [react()],
   root: '.',
   build: {
-    outDir: '../public/front',
+    outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
       input: resolve(__dirname, 'index.html'),

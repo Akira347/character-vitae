@@ -24,26 +24,48 @@ jobs:
         run: |
           npm ci
 
-      - name: Build production bundle
-        env:
-          NODE_ENV: production
-        run: |
-          npm run build
+      - name: Build Frontend
+        working-directory: front
+        run: npm install && npm run build
 
       - name: Prepare list of files to upload
         run: |
           # adapte DIST_DIR si ton build sort dans "dist" ou "build"
-          echo "DIST_DIR=dist" >> $GITHUB_ENV
+          echo "DIST_DIR=front/dist" >> $GITHUB_ENV
 
-      - name: Deploy to FTP (SamKirkland/FTP-Deploy-Action)
-        uses: SamKirkland/FTP-Deploy-Action@4.3.6
-        with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: ${{ secrets.FTP_PORT }}
-          protocol: ftps    # ftps ou ftp ; si ton hébergement supporte FTPS, laisse ftps
-          local-dir: ${{ env.DIST_DIR }}
-          server-dir: ${{ secrets.FTP_REMOTE_DIR }}
-          # optional:
-          # git-ftp-args: --insecure  # si FTPS self-signed, sinon pas besoin
+      - name: Deploy to OVH via lftp (FTPS)
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}        # exemple: 21 ou 990
+          FTP_REMOTE_DIR: ${{ secrets.FTP_REMOTE_DIR }} # ex: /www/character-vitae/
+          DIST_DIR: front/dist                           # ou "build" selon ton projet
+        run: |
+          set -euo pipefail
+
+          echo "Installing lftp..."
+          sudo apt-get update -y
+          sudo apt-get install -y lftp
+
+          echo "Listing local build dir..."
+          ls -la "${{ env.DIST_DIR }}"
+
+          # Options lftp :
+          # -p pour port, --verbose utile pour debug
+          # mirror -R : upload local -> remote
+          # --delete : supprime sur remote les fichiers absents localement (mirror exact)
+          # --parallel=4 : transferts parallèles
+          # --verbose : log détaillé
+          #
+          # On force FTPS si FTP_PORT == 990 ou si tu veux FTPS sur 21 (force ssl)
+          #
+          LFTP_CMD="set ftp:connect-program 'openssl s_client -quiet -connect %h:%p' ; \
+                    set ssl:verify-certificate no ; \
+                    open -u \"${FTP_USERNAME}\",\"${FTP_PASSWORD}\" ${FTP_HOST} -p ${FTP_PORT} ; \
+                    mirror -R --delete --parallel=4 --verbose ${DIST_DIR} ${FTP_REMOTE_DIR} ; \
+                    bye"
+
+          echo "Running lftp..."
+          # Exécution sécurisée
+          lftp -c "$LFTP_CMD"

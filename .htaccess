@@ -1,6 +1,6 @@
 RewriteEngine On
-RewriteBase /
+RewriteBase /character-vitae/public/front/
 RewriteRule ^index\.html$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /index.html [L]
+RewriteRule . /character-vitae/public/front/index.html [L]
