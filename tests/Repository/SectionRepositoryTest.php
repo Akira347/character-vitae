@@ -1,15 +1,15 @@
 <?php
+
 // tests/Repository/SectionRepositoryTest.php
 declare(strict_types=1);
 
 namespace App\Tests\Repository;
 
 use ApiPlatform\Symfony\Bundle\Test\ApiTestCase;
-use Doctrine\ORM\EntityManagerInterface;
-use App\Entity\Section;
 use App\Entity\Character;
+use App\Entity\Section;
 use App\Entity\User;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Doctrine\ORM\EntityManagerInterface;
 
 final class SectionRepositoryTest extends ApiTestCase
 {

@@ -1,4 +1,5 @@
 <?php
+
 // tests/Entity/SectionTest.php
 declare(strict_types=1);
 

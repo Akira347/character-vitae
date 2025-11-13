@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Tests\Controller;
@@ -21,12 +22,12 @@ final class SectionApiTest extends WebTestCase
         // create a confirmed user in DB
         $user = new User();
         $uniq = \uniqid('tst_', true);
-        $email = 'testuser+' . \str_replace('.', '', $uniq) . '@example.com';
+        $email = 'testuser+'.\str_replace('.', '', $uniq).'@example.com';
         $user->setEmail($email);
         $user->setFirstName('Test');
         $user->setLastName('User');
         $user->setRoles(['ROLE_USER']);
-        $user->setPassword(password_hash('password123', PASSWORD_BCRYPT));
+        $user->setPassword(\password_hash('password123', PASSWORD_BCRYPT));
         $user->setIsConfirmed(true);
 
         $em->persist($user);
@@ -47,7 +48,7 @@ final class SectionApiTest extends WebTestCase
         $this->assertNotNull($userId);
         /** @var int $userId */
         $userId = $userId;
-        $ownerIri = 'http://localhost/apip/users/' . $userId;
+        $ownerIri = 'http://localhost/apip/users/'.$userId;
 
         // payload and request: BrowserKit style -> body as JSON string and headers in 5th arg
         $payload = [
@@ -77,11 +78,11 @@ final class SectionApiTest extends WebTestCase
         $this->assertNotNull($character->getId(), 'Character id should be set after flush.');
 
         // Construire l'IRI de lecture (ApiPlatform en test expose /apip/characters/{id})
-        $characterIri = '/apip/characters/' . $character->getId();
+        $characterIri = '/apip/characters/'.$character->getId();
 
         // Maintenant lire via l'API (client) pour vérifier la lecture par l'API et l'auth
         $client->request('GET', $characterIri, [], [], [
-            'HTTP_AUTHORIZATION' => 'Bearer ' . $tokenStr,
+            'HTTP_AUTHORIZATION' => 'Bearer '.$tokenStr,
             'ACCEPT' => 'application/ld+json',
         ]);
 
@@ -94,7 +95,7 @@ final class SectionApiTest extends WebTestCase
 
         // read back
         $client->request('GET', $characterIri, [], [], [
-            'HTTP_AUTHORIZATION' => 'Bearer ' . $tokenStr,
+            'HTTP_AUTHORIZATION' => 'Bearer '.$tokenStr,
             'ACCEPT' => 'application/ld+json',
         ]);
 
