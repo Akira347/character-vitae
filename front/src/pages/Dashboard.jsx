@@ -198,9 +198,12 @@ export default function Dashboard({
   useUnsavedWarning(isDirty, 'Modifications non sauvegardées — quitter sans sauvegarder ?');
 
   // wrapper that marks dirty and dispatches event
-  const setSections = (updater) => {
-    setIsDirty(true);
-    window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: true } }));
+  // now supports an options object { markDirty: true } so we can update sections without flagging layout dirty
+  const setSections = (updater, opts = { markDirty: true }) => {
+    if (opts.markDirty) {
+      setIsDirty(true);
+      window.dispatchEvent(new CustomEvent('dirty-changed', { detail: { isDirty: true } }));
+    }
     setSectionsRaw((prev) => (typeof updater === 'function' ? updater(prev) : updater));
   };
 
@@ -549,10 +552,68 @@ export default function Dashboard({
               show={editing.show}
               type={sections.find((s) => s.id === editing.sectionId)?.type}
               initialData={sections.find((s) => s.id === editing.sectionId)?.content}
-              onSave={(data) => {
-                setSections((prev) =>
-                  prev.map((s) => (s.id === editing.sectionId ? { ...s, content: data } : s)),
-                );
+              onSave={async (data) => {
+                // 1) update locally WITHOUT marking layout as dirty (content-only)
+                let updatedSections = [];
+                setSectionsRaw((prev) => {
+                  const copy = prev.map((s) =>
+                    s.id === editing.sectionId ? { ...s, content: data } : s,
+                  );
+                  updatedSections = copy;
+                  return copy;
+                });
+
+                // 2) persist immediately to server — we PATCH the character layout (layout contains per-section content)
+                // This is consistent with current backend (we already PATCH layout on Save)
+                if (characterId) {
+                  try {
+                    const layout = sectionsToLayout(updatedSections);
+                    const headers = {
+                      'Content-Type': 'application/merge-patch+json',
+                      Accept: 'application/ld+json',
+                    };
+                    if (token) headers.Authorization = `Bearer ${token}`;
+
+                    console.debug('Saving section content via character PATCH', {
+                      characterId,
+                      layout,
+                    });
+                    await fetchJson(`/apip/characters/${characterId}`, {
+                      method: 'PATCH',
+                      headers,
+                      body: JSON.stringify({ layout }),
+                    });
+
+                    // keep layout dirty state unchanged (we only persisted content)
+                    // but notify others that character has been updated so they refresh if needed
+                    window.dispatchEvent(
+                      new CustomEvent('character-updated', { detail: { id: String(characterId) } }),
+                    );
+                    window.dispatchEvent(
+                      new CustomEvent('notify', {
+                        detail: {
+                          message: 'Section enregistrée',
+                          variant: 'success',
+                          timeout: 1500,
+                        },
+                      }),
+                    );
+                  } catch (err) {
+                    console.error('Failed to persist section content', err);
+                    window.dispatchEvent(
+                      new CustomEvent('notify', {
+                        detail: {
+                          message: 'Erreur enregistrement section',
+                          variant: 'danger',
+                          timeout: 4000,
+                        },
+                      }),
+                    );
+                    // optional: we could revert the local change if persistence failed
+                  }
+                }
+
+                // 3) close editor
                 setEditing({ show: false, sectionId: null });
               }}
               onCancel={() => setEditing({ show: false, sectionId: null })}

@@ -1,0 +1,49 @@
+name: Deploy React build to OVH (FTP)
+
+on:
+  push:
+    branches:
+      - main
+
+permissions: write-all
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Build production bundle
+        env:
+          NODE_ENV: production
+        run: |
+          npm run build
+
+      - name: Prepare list of files to upload
+        run: |
+          # adapte DIST_DIR si ton build sort dans "dist" ou "build"
+          echo "DIST_DIR=dist" >> $GITHUB_ENV
+
+      - name: Deploy to FTP (SamKirkland/FTP-Deploy-Action)
+        uses: SamKirkland/FTP-Deploy-Action@4.3.6
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT }}
+          protocol: ftps    # ftps ou ftp ; si ton hébergement supporte FTPS, laisse ftps
+          local-dir: ${{ env.DIST_DIR }}
+          server-dir: ${{ secrets.FTP_REMOTE_DIR }}
+          # optional:
+          # git-ftp-args: --insecure  # si FTPS self-signed, sinon pas besoin
