@@ -29,7 +29,11 @@ jobs:
         run: npm run build
 
       - name: Verify build
-        run: ls -la /public/front
+        # check expected output folder and fail early if missing
+        run: |
+          echo "Listing build output (public/front):"
+          ls -la public/front || (echo "Build output not found at public/front" && exit 1)
+
 
       - name: Deploy to OVH via lftp (FTPS)
         env:
@@ -43,5 +47,5 @@ jobs:
           sudo apt-get install -y lftp
           lftp -c "set ftp:ssl-allow yes; \
                    open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_HOST -p $FTP_PORT; \
-                   mirror -R --delete --parallel=4 --verbose front/public/front $FTP_REMOTE_DIR; \
+                   mirror -R --delete --parallel=4 --verbose public/front $FTP_REMOTE_DIR; \
                    bye"
