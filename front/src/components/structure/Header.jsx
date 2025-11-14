@@ -208,7 +208,7 @@ export default function Header() {
 
   useEffect(() => {
     const controller = new AbortController();
-    loadCharacters(null, controller.signal).catch(() => { });
+    loadCharacters(null, controller.signal).catch(() => {});
     return () => controller.abort();
   }, [loadCharacters]);
 

@@ -1,0 +1,45 @@
+# Dockerfile.render
+FROM php:8.3-fpm
+
+# ---- system deps ----
+RUN apt-get update && apt-get install -y \
+    git unzip libpq-dev libonig-dev libxml2-dev zip curl openssl \
+    nginx procps gettext-base \
+  && docker-php-ext-install pdo pdo_pgsql mbstring xml \
+  && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# create www user with uid 1000 (same as local)
+RUN set -eux; \
+  groupadd -g 1000 www-data || true; \
+  useradd -u 1000 -g 1000 -M -r -s /usr/sbin/nologin www-data || true;
+
+WORKDIR /srv/app
+
+# copy app
+COPY . /srv/app
+
+# composer (from upstream)
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# install php deps
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+# build frontend if you want server-side, optional (we keep frontend on OVH)
+# RUN cd front && npm ci && npm run build
+
+# nginx config — we will template port
+COPY docker/render/nginx.conf /etc/nginx/sites-available/default
+RUN mkdir -p /run/nginx
+
+# entrypoint: write env JWT keys if present (same logic as yours)
+COPY docker/render/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# permissions
+RUN chown -R www-data:www-data /srv/app
+RUN chmod -R u+rwX /srv/app/var || true
+
+# expose (Render provides $PORT, but for clarity)
+EXPOSE 8000
+
+CMD ["/usr/local/bin/docker-entrypoint.sh"]
