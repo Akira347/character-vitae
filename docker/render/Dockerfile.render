@@ -21,7 +21,12 @@ COPY . /srv/app
 # composer (from upstream)
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# install php deps
+# Prevent Symfony from clearing cache during composer install (needs DATABASE_URL)
+ENV APP_ENV=prod
+ENV APP_DEBUG=0
+ENV SYMFONY_SKIP_APACHE_PACKAGES=1
+ENV SYMFONY_SKIP_CACHE_CLEAR=1
+
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
 # build frontend if you want server-side, optional (we keep frontend on OVH)
