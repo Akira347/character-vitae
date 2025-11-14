@@ -93,13 +93,13 @@ export function AuthProvider({ children }) {
     return () => clearLogoutTimer();
   }, [token, fetchMe]);
 
-  const login = async ({ username, password }) => {
+  const login = async ({ email, password }) => {
     setLoading(true);
     try {
       const resp = await fetch('/api/login_check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
       const text = await resp.text();
       let json = null;

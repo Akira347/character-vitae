@@ -91,7 +91,7 @@ class AuthControllerTest extends WebTestCase
 
         // 2) Se loguer / récupérer token
         $loginBody = \json_encode([
-            'username' => $payload['email'],
+            'email' => $payload['email'],
             'password' => $payload['password'],
         ], JSON_THROW_ON_ERROR);
 

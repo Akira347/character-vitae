@@ -1,36 +1,29 @@
-import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-
-// ✅ Recréer __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { resolve } from 'path';
 
 export default defineConfig({
-  base: '/',
   plugins: [react()],
-  root: '.',
+  root: './', // ton dossier front
   build: {
-    outDir: 'public/front',
+    outDir: resolve(__dirname, '../public/front'),
     emptyOutDir: true,
-    rollupOptions: {
-      input: resolve(__dirname, 'index.html'),
-    },
   },
   server: {
+    host: true,          // équivalent à 0.0.0.0
+    port: 5173,
+    strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://host.docker.internal:8000',
         changeOrigin: true,
         secure: false,
       },
       '/apip': {
-        target: 'http://localhost:8000', // port du backend Symfony
+        target: 'http://host.docker.internal:8000',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/apip/, '/apip') // si tu veux garder /apip
-      }
-    }
-  }
+      },
+    },
+  },
 });

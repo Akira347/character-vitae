@@ -208,7 +208,7 @@ export default function Header() {
 
   useEffect(() => {
     const controller = new AbortController();
-    loadCharacters(null, controller.signal).catch(() => {});
+    loadCharacters(null, controller.signal).catch(() => { });
     return () => controller.abort();
   }, [loadCharacters]);
 
@@ -316,7 +316,7 @@ export default function Header() {
     setLoginError(null);
     setLoginLoading(true);
     try {
-      const result = await login({ username: loginEmail, password: loginPassword });
+      const result = await login({ email: loginEmail, password: loginPassword });
       if (result.ok) {
         setShow(false);
         navigate('/dashboard');
