@@ -29,7 +29,7 @@ jobs:
         run: npm run build
 
       - name: Verify build
-        run: ls -la front/public/front
+        run: ls -la /public/front
 
       - name: Deploy to OVH via lftp (FTPS)
         env:
