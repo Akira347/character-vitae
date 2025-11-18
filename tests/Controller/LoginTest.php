@@ -37,7 +37,7 @@ final class LoginTest extends WebTestCase
         $em->persist($user);
         $em->flush();
 
-        $payload = \json_encode(['username' => 'login-test@example.com', 'password' => 'secret123']);
+        $payload = \json_encode(['email' => 'login-test@example.com', 'password' => 'secret123']);
         $this->assertNotFalse($payload);
 
         $client->request(
@@ -64,7 +64,7 @@ final class LoginTest extends WebTestCase
     {
         $client = static::createClient();
 
-        $payload = \json_encode(['username' => 'nosuch@example.com', 'password' => 'wrong']);
+        $payload = \json_encode(['email' => 'nosuch@example.com', 'password' => 'wrong']);
         $this->assertNotFalse($payload);
 
         $client->request(

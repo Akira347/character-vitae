@@ -87,6 +87,29 @@ else
   echo "MAILER_DSN already set externally, keeping it."
 fi
 
+# --- Render: render nginx template to actual conf ----------------------------
+# Ensure PORT has a default if unset (Render will set it at runtime)
+: "${PORT:=8000}"
+
+NGINX_TEMPLATE=/etc/nginx/sites-available/default.template
+NGINX_TARGET=/etc/nginx/sites-enabled/default
+
+if [ -f "$NGINX_TEMPLATE" ]; then
+  echo "Rendering nginx template -> $NGINX_TARGET (PORT=${PORT})"
+  # envsubst replaces $PORT placeholder
+  envsubst '$PORT' < "$NGINX_TEMPLATE" > "$NGINX_TARGET" || {
+    echo "ERROR: envsubst failed for $NGINX_TEMPLATE"
+    exit 1
+  }
+  # ensure correct perms
+  chmod 644 "$NGINX_TARGET" || true
+else
+  # If no template present but an existing static conf exists, copy it to sites-enabled
+  if [ -f /etc/nginx/sites-available/default ] && [ ! -f "$NGINX_TARGET" ]; then
+    cp /etc/nginx/sites-available/default "$NGINX_TARGET" || true
+  fi
+fi
+
 # ---- Symfony cache warmup (optional) --------------------------------------
 if [ -x "/srv/app/bin/console" ] && [ -d "/srv/app/vendor" ]; then
   echo "Running Symfony cache clear & maybe warmup..."

@@ -1,7 +1,5 @@
 <?php
 
-// tests/Controller/CharacterControllerTest.php
-
 namespace App\Tests\Controller;
 
 use App\Entity\User;
@@ -13,7 +11,15 @@ class CharacterControllerTest extends WebTestCase
     {
         $client = static::createClient();
         $payload = \json_encode(['title' => 'Test']) ?: '';
-        $client->request('POST', '/api/characters', [], [], ['CONTENT_TYPE' => 'application/json'], $payload);
+        $client->request(
+            'POST',
+            '/api/characters',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            $payload
+        );
+
         $this->assertEquals(401, $client->getResponse()->getStatusCode());
     }
 
@@ -24,62 +30,83 @@ class CharacterControllerTest extends WebTestCase
         /** @var \Doctrine\ORM\EntityManagerInterface $em */
         $em = $container->get(\Doctrine\ORM\EntityManagerInterface::class);
 
-        // create test user
+        // créer l'utilisateur test
         $user = (new User())
             ->setEmail('char_tester@example.com')
             ->setFirstName('Test')
-            ->setLastName('User');
-        $user->setPassword(\password_hash('password123', PASSWORD_BCRYPT));
-        $user->setIsConfirmed(true); // <-- important: mark user as confirmed for login
+            ->setLastName('User')
+            ->setIsConfirmed(true)
+            ->setPassword(\password_hash('password123', PASSWORD_BCRYPT));
         $em->persist($user);
         $em->flush();
 
-        // login
+        // login via API — note: JSON login expects "email" key in this project
         $payload = \json_encode([
-            'username' => 'char_tester@example.com',
+            'email' => 'char_tester@example.com',
             'password' => 'password123',
         ]) ?: '';
+        $client->request(
+            'POST',
+            '/api/login_check',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            $payload
+        );
 
-        $client->request('POST', '/api/login_check', [], [], ['CONTENT_TYPE' => 'application/json'], $payload);
-
-        $this->assertEquals(200, $client->getResponse()->getStatusCode());
+        $this->assertResponseStatusCodeSame(200);
 
         $content = (string) $client->getResponse()->getContent();
         $data = \json_decode($content, true);
 
-        /* @var array<string,mixed> $data */
-        $this->assertIsArray($data);
-        $this->assertArrayHasKey('token', $data);
-
-        $token = '';
-        if (\array_key_exists('token', $data) && (\is_scalar($data['token']) || $data['token'] === null)) {
-            $token = (string) ($data['token'] ?? '');
+        if (!\is_array($data)) {
+            $this->fail('Response from login_check is not an array');
         }
+        /* @var array<string,mixed> $data */
 
-        // create character
+        $this->assertArrayHasKey('token', $data);
+        if (!isset($data['token']) || !\is_scalar($data['token'])) {
+            $this->fail('Login response token is missing or not scalar');
+        }
+        $token = (string) $data['token'];
+
+        // create character via API
         $payload2 = \json_encode([
             'title' => 'Mon Chevalier',
             'description' => 'Une courte description',
             'templateType' => 'template1',
         ]) ?: '';
 
-        $client->request('POST', '/api/characters', [], [], [
-            'CONTENT_TYPE' => 'application/json',
-            'HTTP_AUTHORIZATION' => 'Bearer '.$token,
-        ], $payload2);
+        $client->request(
+            'POST',
+            '/api/characters',
+            [],
+            [],
+            [
+                'CONTENT_TYPE' => 'application/json',
+                'HTTP_AUTHORIZATION' => 'Bearer '.$token,
+            ],
+            $payload2
+        );
 
-        $this->assertEquals(201, $client->getResponse()->getStatusCode());
+        $this->assertResponseStatusCodeSame(201);
+
         $content2 = (string) $client->getResponse()->getContent();
         $result = \json_decode($content2, true);
-        $this->assertIsArray($result);
+
+        if (!\is_array($result)) {
+            $this->fail('Response from creating character is not an array');
+        }
+        /* @var array<string,mixed> $result */
+
         $this->assertArrayHasKey('id', $result);
 
-        // cleanup
+        // cleanup: remove user (and cascade will remove characters if configured)
         $userId = $user->getId();
         if ($userId !== null) {
-            $persistedUser = $em->find(User::class, $userId);
-            if ($persistedUser !== null) {
-                $em->remove($persistedUser);
+            $managedUser = $em->find(User::class, $userId);
+            if ($managedUser !== null) {
+                $em->remove($managedUser);
                 $em->flush();
             }
         }
