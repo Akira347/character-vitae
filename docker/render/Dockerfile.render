@@ -29,8 +29,8 @@ ENV SYMFONY_SKIP_APACHE_PACKAGES=1
 # Install PHP deps without running auto-scripts (cache clear later)
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
 
-# Optional: build frontend (if needed server-side)
-# RUN cd front && npm ci && npm run build
+# Build frontend
+RUN cd front && npm ci && npm run build
 
 # nginx config as template so entrypoint can envsubst $PORT at container start
 COPY docker/render/nginx.conf /etc/nginx/sites-available/default.template
