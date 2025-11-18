@@ -32,8 +32,8 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-di
 # Optional: build frontend (if needed server-side)
 # RUN cd front && npm ci && npm run build
 
-# nginx config
-COPY docker/render/nginx.conf /etc/nginx/sites-available/default
+# nginx config as template so entrypoint can envsubst $PORT at container start
+COPY docker/render/nginx.conf /etc/nginx/sites-available/default.template
 RUN mkdir -p /run/nginx
 
 # entrypoint
@@ -42,6 +42,7 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # permissions
 RUN chown -R www-data:www-data /srv/app
+RUN mkdir -p /srv/app/var && chmod -R u+rwX /srv/app/var || true
 RUN chmod -R u+rwX /srv/app/var || true
 
 # expose port
