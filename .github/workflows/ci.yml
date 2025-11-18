@@ -130,6 +130,14 @@ jobs:
             - name: Build front
               working-directory: front
               run: npm run build
+            - name: Setup PHP (needed to run Symfony console)
+              uses: shivammathur/setup-php@v2
+              with:
+                php-version: '8.3'
+                extensions: mbstring, intl, pdo_pgsql, xml
+                coverage: none
+            - name: Install PHP dependencies (for assets:install)
+              run: composer install --no-interaction --prefer-dist --no-scripts
             - name: Install ApiPlatform assets into final folder
               run: php bin/console assets:install public/front/assets --no-interaction --symlink
             - name: Run front tests (Jest)
