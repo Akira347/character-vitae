@@ -13,6 +13,7 @@ export default defineConfig({
     host: true,          // équivalent à 0.0.0.0
     port: 5173,
     strictPort: true,
+    allowedHosts: ['localhost', 'host.docker.internal'],
     proxy: {
       '/api': {
         target: 'http://host.docker.internal:8000',

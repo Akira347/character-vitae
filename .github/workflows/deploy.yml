@@ -28,6 +28,9 @@ jobs:
         working-directory: front
         run: npm run build
 
+      - name: Install ApiPlatform assets into final folder
+        run: php bin/console assets:install public/front/assets --no-interaction --symlink
+
       - name: Verify build
         # check expected output folder and fail early if missing
         run: |

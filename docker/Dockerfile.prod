@@ -4,7 +4,7 @@ FROM node:20 AS frontend
 WORKDIR /app
 COPY front/ /app/
 RUN npm ci
-RUN npm run build
+RUN npm run build && php bin/console assets:install public/front --no-interaction
 # Vite build -> outputs to ../public/front (donc here it's /app/public/front)
 
 ### STAGE backend (composer)

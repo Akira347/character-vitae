@@ -1,5 +1,7 @@
 # config/packages/api_platform.yaml
 api_platform:
+  enable_docs: true
+  enable_swagger_ui: true
   title: 'Character Vitae API'
   # swagger_ui and docs are enabled by default
   formats:

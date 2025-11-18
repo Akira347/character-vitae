@@ -21,22 +21,22 @@ COPY . /srv/app
 # composer (from upstream)
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Prevent Symfony from clearing cache during composer install (needs DATABASE_URL)
+# Symfony env
 ENV APP_ENV=prod
 ENV APP_DEBUG=0
 ENV SYMFONY_SKIP_APACHE_PACKAGES=1
-ENV SYMFONY_SKIP_CACHE_CLEAR=1
 
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+# Install PHP deps without running auto-scripts (cache clear later)
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
 
-# build frontend if you want server-side, optional (we keep frontend on OVH)
+# Optional: build frontend (if needed server-side)
 # RUN cd front && npm ci && npm run build
 
-# nginx config — we will template port
+# nginx config
 COPY docker/render/nginx.conf /etc/nginx/sites-available/default
 RUN mkdir -p /run/nginx
 
-# entrypoint: write env JWT keys if present (same logic as yours)
+# entrypoint
 COPY docker/render/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
@@ -44,7 +44,8 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 RUN chown -R www-data:www-data /srv/app
 RUN chmod -R u+rwX /srv/app/var || true
 
-# expose (Render provides $PORT, but for clarity)
+# expose port
 EXPOSE 8000
 
-CMD ["/usr/local/bin/docker-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["/bin/sh","-lc","php-fpm -F & nginx -g 'daemon off;'"]
