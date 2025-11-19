@@ -1,59 +1,69 @@
-# Stage 1: build frontend
-FROM node:20 AS front-build
-WORKDIR /build/front
-COPY front/package*.json front/ pnpm-lock.yaml* /build/front/   # adapte si yarn ou pnpm
-COPY front/ /build/front/
-RUN npm ci
-RUN npm run build
-
-# Stage 2: PHP + app
-FROM php:8.3-fpm
-
-# System deps
-RUN apt-get update && apt-get install -y \
-    git unzip libpq-dev libonig-dev libxml2-dev zip curl openssl \
-    nginx procps gettext-base \
-  && docker-php-ext-install pdo pdo_pgsql mbstring xml \
-  && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# create www user
-RUN set -eux; \
-  groupadd -g 1000 www-data || true; \
-  useradd -u 1000 -g 1000 -M -r -s /usr/sbin/nologin www-data || true;
-
-WORKDIR /srv/app
-
-# copy app code
-COPY . /srv/app
-
-# copy composer from official image
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-ENV APP_ENV=prod
-ENV APP_DEBUG=0
-ENV SYMFONY_SKIP_APACHE_PACKAGES=1
-
-# Install PHP deps (no scripts)
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
-
-# Copy built frontend from stage1 into public/front
-# Adjust the source location depending on your front build output (dist or build)
-RUN rm -rf /srv/app/public/front || true
-COPY --from=front-build /build/front/dist /srv/app/public/front
-# If your frontend outputs to "build" instead of "dist", replace /build/front/dist with /build/front/build
-
-# nginx template
-COPY docker/render/nginx.conf /etc/nginx/sites-available/default.template
-RUN mkdir -p /run/nginx
-
-# entrypoint
-COPY docker/render/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# perms and var dir
-RUN chown -R www-data:www-data /srv/app
-RUN mkdir -p /srv/app/var && chmod -R u+rwX /srv/app/var || true
-
-EXPOSE 8000
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["/bin/sh","-lc","php-fpm -F & nginx -g 'daemon off;'"]
+# -----------------------------
+# Stage 1: build frontend (Vite)
+# -----------------------------
+  FROM node:20 AS front-build
+  WORKDIR /build/front
+  
+  # copy package files first for better caching
+  COPY front/package.json front/package-lock.json* ./
+  # copy rest of frontend sources
+  COPY front/ .
+  
+  RUN npm ci --prefer-offline --no-audit --progress=false
+  RUN npm run build
+  
+  # -----------------------------
+  # Stage 2: final php image
+  # -----------------------------
+  FROM php:8.3-fpm AS app
+  
+  # system deps
+  RUN apt-get update && apt-get install -y \
+      git unzip libpq-dev libonig-dev libxml2-dev zip curl openssl \
+      nginx procps gettext-base \
+    && docker-php-ext-install pdo pdo_pgsql mbstring xml \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+  
+  # create www user
+  RUN set -eux; \
+    groupadd -g 1000 www-data || true; \
+    useradd -u 1000 -g 1000 -M -r -s /usr/sbin/nologin www-data || true;
+  
+  WORKDIR /srv/app
+  
+  # copy app sources
+  COPY . /srv/app
+  
+  # composer binary from official composer image
+  COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+  
+  # environment defaults
+  ENV APP_ENV=prod
+  ENV APP_DEBUG=0
+  ENV SYMFONY_SKIP_APACHE_PACKAGES=1
+  
+  # install PHP deps without running composer scripts (we run entrypoint later)
+  RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
+  
+  # copy frontend build output (Vite -> dist)
+  # Vite default output directory is /build/front/dist
+  RUN mkdir -p /srv/app/public/front
+  COPY --from=front-build /build/front/dist /srv/app/public/front
+  
+  # install nginx template as template (entrypoint will envsubst $PORT)
+  COPY docker/render/nginx.conf /etc/nginx/sites-available/default.template
+  RUN mkdir -p /run/nginx
+  
+  # entrypoint + perms
+  COPY docker/render/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+  RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+  
+  # ensure var dir exists and perms set (avoid missing dir errors)
+  RUN mkdir -p /srv/app/var && chown -R www-data:www-data /srv/app || true
+  RUN chmod -R u+rwX /srv/app/var || true
+  
+  EXPOSE 8000
+  
+  ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+  CMD ["/bin/sh","-lc","php-fpm -F & nginx -g 'daemon off;'"]
+  
