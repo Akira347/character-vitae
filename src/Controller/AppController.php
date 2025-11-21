@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 // src/Controller/AppController.php
 
 namespace App\Controller;
@@ -7,6 +9,7 @@ namespace App\Controller;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 
 class AppController extends AbstractController
@@ -17,27 +20,42 @@ class AppController extends AbstractController
     #[Route('/', name: 'app_home', methods: ['GET'])]
     public function index(): Response
     {
-        $file = $this->getParameter('kernel.project_dir') . '/public/index.html';
+        $projectDir = $this->getParameter('kernel.project_dir');
 
-        return new BinaryFileResponse($file);
+        if (!\is_string($projectDir)) {
+            throw new \RuntimeException('kernel.project_dir parameter is invalid or missing.');
+        }
+
+        $filePath = $projectDir . '/public/front/index.html';
+
+        if (!\is_file($filePath) || !\is_readable($filePath)) {
+            throw new NotFoundHttpException('SPA entrypoint not found.');
+        }
+
+        return new BinaryFileResponse($filePath);
     }
 
     /**
      * Catch-all route for the SPA.
      *
-     * This will serve index.html for any path that does NOT start with:
-     * - api
-     * - apip
-     * - _wdt
-     * - _profiler
-     *
-     * The negative lookahead requirement avoids interfering with API or dev routes.
+     * Serves the same SPA index for any non-API route so client-side router can handle it.
+     * It excludes endpoints that must be handled by Symfony (api, apip, _wdt, _profiler).
      */
-    #[Route('/{path<.*>}', name: 'app_catch_all', methods: ['GET'], requirements: ['path' => '^(?!api|apip|_wdt|_profiler).*'])]
+    #[Route('/{path<^(?!api|apip|_wdt|_profiler).*>}', name: 'app_catch_all', methods: ['GET'])]
     public function catchAll(string $path = ''): Response
     {
-        $file = $this->getParameter('kernel.project_dir') . '/public/index.html';
+        $projectDir = $this->getParameter('kernel.project_dir');
 
-        return new BinaryFileResponse($file);
+        if (!\is_string($projectDir)) {
+            throw new \RuntimeException('kernel.project_dir parameter is invalid or missing.');
+        }
+
+        $filePath = $projectDir . '/public/front/index.html';
+
+        if (!\is_file($filePath) || !\is_readable($filePath)) {
+            throw new NotFoundHttpException('SPA entrypoint not found.');
+        }
+
+        return new BinaryFileResponse($filePath);
     }
 }
