@@ -46,10 +46,8 @@ if [ -f /srv/app/config/jwt/public.pem ]; then
 fi
 
 # ---- Build MAILER_DSN from SMTP_* if provided (Render secrets) -------------
-# Priority: if MAILER_DSN already set externally, keep it.
 if [ -z "${MAILER_DSN:-}" ] ; then
   if [ -n "${SMTP_HOST:-}" ] && [ -n "${SMTP_PORT:-}" ]; then
-    # encode user and password safely with PHP urlencode
     PHP_URL_ENC_USER=''
     PHP_URL_ENC_PASS=''
     if [ -n "${SMTP_USER:-}" ]; then
@@ -59,14 +57,12 @@ if [ -z "${MAILER_DSN:-}" ] ; then
       PHP_URL_ENC_PASS=$(php -r 'echo rawurlencode(getenv("SMTP_PASSWORD") ?: "");')
     fi
 
-    # choose scheme: smtps for port 465, smtp otherwise
     if [ "${SMTP_PORT}" = "465" ]; then
       SCHEME="smtps"
     else
       SCHEME="smtp"
     fi
 
-    # construct userinfo only if user provided
     if [ -n "$PHP_URL_ENC_USER" ]; then
       if [ -n "$PHP_URL_ENC_PASS" ]; then
         USERINFO="${PHP_URL_ENC_USER}:${PHP_URL_ENC_PASS}@"
@@ -77,9 +73,13 @@ if [ -z "${MAILER_DSN:-}" ] ; then
       USERINFO=""
     fi
 
-    MAILER_DSN="${SCHEME}://${USERINFO}${SMTP_HOST}:${SMTP_PORT}?encryption=ssl&auth_mode=login"
-    # optional extra params (auth_mode / encryption) if you want to force:
-    # ex: MAILER_DSN="${MAILER_DSN}?encryption=ssl&auth_mode=login"
+    MAILER_DSN="${SCHEME}://${USERINFO}${SMTP_HOST}:${SMTP_PORT}"
+
+    # --- add sensible params for SSL port 465 ---
+    if [ "${SMTP_PORT}" = "465" ]; then
+      MAILER_DSN="${MAILER_DSN}?encryption=ssl&auth_mode=login"
+    fi
+
     export MAILER_DSN
     echo "MAILER_DSN constructed from SMTP_* (hidden) and exported."
   fi
