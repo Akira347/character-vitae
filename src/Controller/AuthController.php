@@ -127,6 +127,10 @@ class AuthController extends AbstractController
                 ->text("Merci de confirmer votre compte : $confirmUrl")
             ;
 
+            $dsn = getenv('MAILER_DSN') ?: 'not-set';
+            $masked = preg_replace('#^(.*://)[^@]+@#', '$1****:****@', $dsn);
+            $this->logger->info('mailer:using-dsn', ['mailer_dsn_masked' => $masked]);
+
             $this->mailer->send($emailMessage);
             $this->logger->info('Confirmation email dispatched', ['to' => $email]);
         } catch (\Throwable $e) {

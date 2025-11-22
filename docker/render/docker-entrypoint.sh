@@ -81,7 +81,8 @@ if [ -z "${MAILER_DSN:-}" ] ; then
     fi
 
     export MAILER_DSN
-    echo "MAILER_DSN constructed from SMTP_* (hidden) and exported."
+    # Mask credentials for logs: replace user:pass@   -> ****:****@
+    echo "MAILER_DSN (masked): $(printf '%s' \"$MAILER_DSN\" | sed -E 's#^([^:]+://)[^@]+@#\\1****:****@#')"
   fi
 else
   echo "MAILER_DSN already set externally, keeping it."
