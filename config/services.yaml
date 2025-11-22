@@ -26,10 +26,14 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
+    # Explicit controller service config: make controllers public and
+    # tagged so Symfony can fetch them as controller services.
     App\Controller\:
         resource: '../src/Controller'
-        tags: ['controller.service_arguments']
         public: true
+        autowire: true
+        autoconfigure: true
+        tags: ['controller.service_arguments']
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

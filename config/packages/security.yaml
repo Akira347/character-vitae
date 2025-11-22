@@ -16,14 +16,15 @@ security:
             pattern: ^/(_(profiler|wdt)|css|images|js)/
             security: false
 
-        # routes publiques (login, docs...) - pas d'authentification
-        #public:
-        #    pattern: ^/(login|api/doc|api/login_check|api/register)
-        #    security: false
+        # endpoints publics (exempts de sécurité)
+        public_api:
+            pattern: ^/api/(register|check-email|confirm|resend-confirmation)$
+            security: false
 
-        # endpoint pour login via JSON (email/password -> success_handler renvoie le token Lexik)
+        # firewall qui gère uniquement le login JSON (doit matcher aussi login_check)
         login:
-            pattern: ^/api/login
+            # matcher explicitement les deux chemins /api/login et /api/login_check
+            pattern: ^/api/(login|login_check)
             stateless: true
             json_login:
                 check_path: /api/login_check
@@ -33,26 +34,23 @@ security:
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
             user_checker: App\Security\UserChecker
 
-        # firewall principal pour l'API : JWT (stateless)
+        # firewall principal : JWT pour le reste des /api
         api:
             pattern: ^/api
             stateless: true
-            #provider: app_user_provider
             jwt: ~
             user_checker: App\Security\UserChecker
 
     access_control:
-        # collection et items de characters publics (lecture)
         - { path: ^/apip/characters(?:/.*)?$, roles: PUBLIC_ACCESS }
         - { path: ^/apip/character/demo$, roles: PUBLIC_ACCESS }
-        - { path: ^/api/register, roles: PUBLIC_ACCESS }
-        - { path: ^/api/check-email, roles: PUBLIC_ACCESS }
+
+        - { path: ^/api/register$, roles: PUBLIC_ACCESS }
+        - { path: ^/api/check-email$, roles: PUBLIC_ACCESS }
         - { path: ^/api/confirm$, roles: PUBLIC_ACCESS }
         - { path: ^/api/resend-confirmation$, roles: PUBLIC_ACCESS }
-        - { path: ^/api/login, roles: PUBLIC_ACCESS }
-        - { path: ^/api/doc, roles: PUBLIC_ACCESS }
-        - { path: ^/apip/docs, roles: PUBLIC_ACCESS }
-        - { path: ^/apip/docs.json, roles: PUBLIC_ACCESS }
-        - { path: ^/apip/, roles: IS_AUTHENTICATED_FULLY }
-        - { path: ^/apip, roles: PUBLIC_ACCESS }
+        - { path: ^/api/login$, roles: PUBLIC_ACCESS }
+        - { path: ^/api/login_check$, roles: PUBLIC_ACCESS }
+
+        # catch-all : tout le reste de /api nécessite authentification
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
