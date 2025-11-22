@@ -134,9 +134,11 @@ class AuthController extends AbstractController
             $this->mailer->send($emailMessage);
             $this->logger->info('Confirmation email dispatched', ['to' => $email]);
         } catch (\Throwable $e) {
-            $this->logger->error('Failed to send confirmation email', ['exception' => $e->getMessage()]);
-            // don't fail registration because of mail issues
-        }
+            $this->logger->error('Failed to send confirmation email', [
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }        
 
         return $this->json([
             'id' => $user->getId(),

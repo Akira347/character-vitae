@@ -81,8 +81,10 @@ if [ -z "${MAILER_DSN:-}" ] ; then
     fi
 
     export MAILER_DSN
-    # Mask credentials for logs: replace user:pass@   -> ****:****@
-    echo "MAILER_DSN (masked): $(printf '%s' \"$MAILER_DSN\" | sed -E 's#^([^:]+://)[^@]+@#\\1****:****@#')"
+    # Mask credentials for logs: replace userinfo ...@  -> scheme****:****@
+    # Use sed with a proper backreference (\1) inside single quotes.
+    masked=$(printf '%s' "$MAILER_DSN" | sed -E 's#^([^:]+://)[^@]+@#\1****:****@#')
+    echo "MAILER_DSN (masked): ${masked}"
   fi
 else
   echo "MAILER_DSN already set externally, keeping it."
