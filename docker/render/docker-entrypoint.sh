@@ -77,7 +77,7 @@ if [ -z "${MAILER_DSN:-}" ] ; then
       USERINFO=""
     fi
 
-    MAILER_DSN="${SCHEME}://${USERINFO}${SMTP_HOST}:${SMTP_PORT}"
+    MAILER_DSN="${SCHEME}://${USERINFO}${SMTP_HOST}:${SMTP_PORT}?encryption=ssl&auth_mode=login"
     # optional extra params (auth_mode / encryption) if you want to force:
     # ex: MAILER_DSN="${MAILER_DSN}?encryption=ssl&auth_mode=login"
     export MAILER_DSN

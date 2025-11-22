@@ -46,6 +46,7 @@ security:
         - { path: ^/apip/characters(?:/.*)?$, roles: PUBLIC_ACCESS }
         - { path: ^/apip/character/demo$, roles: PUBLIC_ACCESS }
         - { path: ^/api/register, roles: PUBLIC_ACCESS }
+        - { path: ^/api/check-email, roles: PUBLIC_ACCESS }
         - { path: ^/api/confirm$, roles: PUBLIC_ACCESS }
         - { path: ^/api/resend-confirmation$, roles: PUBLIC_ACCESS }
         - { path: ^/api/login, roles: PUBLIC_ACCESS }
