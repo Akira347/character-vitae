@@ -129,15 +129,14 @@ class AuthController extends AbstractController
 
             $dsn = getenv('MAILER_DSN') ?: 'not-set';
             $masked = preg_replace('#^(.*://)[^@]+@#', '$1****:****@', $dsn);
-            $this->logger->info('mailer:using-dsn', ['mailer_dsn_masked' => $masked]);
+            $this->logger->info('mailer:attempt', [
+                'dsn_masked' => substr((string) getenv('MAILER_DSN'), 0, 60).'...'
+            ], ['channel' => 'mailer']);
 
             $this->mailer->send($emailMessage);
-            $this->logger->info('Confirmation email dispatched', ['to' => $email]);
+            $this->logger->info('mailer:sent', ['to' => $email], ['channel' => 'mailer']);
         } catch (\Throwable $e) {
-            $this->logger->error('Failed to send confirmation email', [
-                'exception' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+            $this->logger->error('mailer:failed', ['exception' => $e->getMessage()], ['channel' => 'mailer']);
         }        
 
         return $this->json([

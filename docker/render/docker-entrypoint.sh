@@ -59,8 +59,13 @@ if [ -z "${MAILER_DSN:-}" ] ; then
 
     if [ "${SMTP_PORT}" = "465" ]; then
       SCHEME="smtps"
+      EXTRA="?encryption=ssl&auth_mode=login"
+    elif [ "${SMTP_PORT}" = "587" ]; then
+      SCHEME="smtp"
+      EXTRA="?encryption=starttls&auth_mode=login"
     else
       SCHEME="smtp"
+      EXTRA=""
     fi
 
     if [ -n "$PHP_URL_ENC_USER" ]; then
@@ -73,13 +78,7 @@ if [ -z "${MAILER_DSN:-}" ] ; then
       USERINFO=""
     fi
 
-    MAILER_DSN="${SCHEME}://${USERINFO}${SMTP_HOST}:${SMTP_PORT}"
-
-    # --- add sensible params for SSL port 465 ---
-    if [ "${SMTP_PORT}" = "465" ]; then
-      MAILER_DSN="${MAILER_DSN}?encryption=ssl&auth_mode=login"
-    fi
-
+    MAILER_DSN="${SCHEME}://${USERINFO}${SMTP_HOST}:${SMTP_PORT}${EXTRA}"
     export MAILER_DSN
     # Mask credentials for logs: replace userinfo ...@  -> scheme****:****@
     # Use sed with a proper backreference (\1) inside single quotes.
