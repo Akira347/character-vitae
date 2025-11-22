@@ -26,7 +26,7 @@ class AppController extends AbstractController
             throw new \RuntimeException('kernel.project_dir parameter is invalid or missing.');
         }
 
-        $filePath = $projectDir . '/public/front/index.html';
+        $filePath = $projectDir.'/public/front/index.html';
 
         if (!\is_file($filePath) || !\is_readable($filePath)) {
             throw new NotFoundHttpException('SPA entrypoint not found.');
@@ -50,7 +50,7 @@ class AppController extends AbstractController
             throw new \RuntimeException('kernel.project_dir parameter is invalid or missing.');
         }
 
-        $filePath = $projectDir . '/public/front/index.html';
+        $filePath = $projectDir.'/public/front/index.html';
 
         if (!\is_file($filePath) || !\is_readable($filePath)) {
             throw new NotFoundHttpException('SPA entrypoint not found.');

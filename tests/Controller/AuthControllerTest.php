@@ -7,7 +7,6 @@ namespace App\Tests\Controller;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
-use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
 
 class AuthControllerTest extends WebTestCase
@@ -123,16 +122,16 @@ class AuthControllerTest extends WebTestCase
     {
         self::ensureKernelShutdown();
         $client = static::createClient();
-    
+
         $payload = ['email' => 'testusersendmail@example.com', 'password' => 'password123'];
-        $body = json_encode($payload, JSON_THROW_ON_ERROR);
-    
+        $body = \json_encode($payload, JSON_THROW_ON_ERROR);
+
         $client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], $body);
-    
+
         $this->assertSame(201, $client->getResponse()->getStatusCode(), 'Register failed: '.$client->getResponse()->getContent());
-    
+
         $container = static::getContainer();
-    
+
         // Prefer using the message logger listener (available in many Symfony versions)
         if ($container->has('mailer.message_logger_listener')) {
             $loggerListener = $container->get('mailer.message_logger_listener');
@@ -140,7 +139,7 @@ class AuthControllerTest extends WebTestCase
             // try to get events from the common MessageLoggerListener API
             if ($loggerListener instanceof \Symfony\Component\Mailer\EventListener\MessageLoggerListener) {
                 $eventsRaw = $loggerListener->getEvents();
-            } elseif (is_object($loggerListener) && property_exists($loggerListener, 'events')) {
+            } elseif (\is_object($loggerListener) && \property_exists($loggerListener, 'events')) {
                 // some debug representations expose public 'events'
                 $eventsRaw = $loggerListener->events;
             } else {
@@ -150,7 +149,7 @@ class AuthControllerTest extends WebTestCase
             // normalize to array of MessageEvent
             if ($eventsRaw instanceof \Symfony\Component\Mailer\Event\MessageEvents) {
                 $events = $eventsRaw->getEvents();
-            } elseif (is_array($eventsRaw)) {
+            } elseif (\is_array($eventsRaw)) {
                 $events = $eventsRaw;
             } else {
                 $this->markTestIncomplete('Could not normalize mailer events from logger listener.');
@@ -166,7 +165,7 @@ class AuthControllerTest extends WebTestCase
                     continue;
                 }
                 $msg = $ev->getMessage();
-                if ($msg instanceof \Symfony\Component\Mime\Email) {
+                if ($msg instanceof Email) {
                     $foundSubject = $msg->getSubject();
                     break;
                 }
@@ -174,13 +173,13 @@ class AuthControllerTest extends WebTestCase
 
             $this->assertNotNull($foundSubject, 'No Email message found in mailer events');
             $this->assertStringContainsString('Confirmez votre compte', (string) $foundSubject);
-        } elseif ($container->has('mailer.transport') && method_exists($container->get('mailer.transport'), 'getSent')) {
+        } elseif ($container->has('mailer.transport') && \method_exists($container->get('mailer.transport'), 'getSent')) {
             // fallback for older setups that expose a transport with getSent()
             $transport = $container->get('mailer.transport');
             $sent = $transport->getSent();
             $this->assertIsArray($sent, 'Transport::getSent() must return an array');
             $this->assertNotEmpty($sent, 'Expected at least one sent message');
-            if (isset($sent[0]) && $sent[0] instanceof \Symfony\Component\Mime\Email) {
+            if (isset($sent[0]) && $sent[0] instanceof Email) {
                 $subject = $sent[0]->getSubject();
                 $this->assertNotNull($subject, 'Expected the sent email to have a subject');
                 $this->assertStringContainsString('Confirmez votre compte', (string) $subject);

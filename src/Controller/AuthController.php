@@ -8,6 +8,7 @@ use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -16,7 +17,6 @@ use Symfony\Component\Mime\Email;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
-use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 
 #[Route('/api', name: 'api_')]
 class AuthController extends AbstractController
@@ -223,11 +223,11 @@ class AuthController extends AbstractController
             }
         } catch (\InvalidArgumentException $e) {
             // parameter not set -> keep default
-        }        
+        }
 
         try {
             $emailMessage = (new Email())
-                ->from((string)$from)
+                ->from((string) $from)
                 ->to((string) $email)
                 ->subject('Confirmez votre compte')
                 ->text("Merci de confirmer votre compte : $confirmUrl");
