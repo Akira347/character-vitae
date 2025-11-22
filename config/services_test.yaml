@@ -1,0 +1,10 @@
+# config/services_test.yaml
+services:
+  _defaults:
+    public: true
+    autowire: true
+    autoconfigure: true
+
+  # aliases so tests can get the mailer easily if needed
+  Symfony\Component\Mailer\MailerInterface: '@mailer.mailer'
+  mailer: '@mailer.mailer'
