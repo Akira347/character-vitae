@@ -22,14 +22,22 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 class AuthController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $em,
-        private UserPasswordHasherInterface $passwordHasher,
-        private MailerInterface $mailer, // <- injecté pour que les tests puissent remplacer le service
-        private LoggerInterface $logger,
-        private ValidatorInterface $validator,
-        private string $frontendUrl, // injecté via services.yaml (%env(FRONTEND_URL)%)
+        EntityManagerInterface $em,
+        UserPasswordHasherInterface $passwordHasher,
+        MailerInterface $mailer,
+        LoggerInterface $logger,
+        LoggerInterface $mailerLogger,
+        ValidatorInterface $validator,
+        string $frontendUrl,
     ) {
-    }
+        $this->em = $em;
+        $this->passwordHasher = $passwordHasher;
+        $this->mailer = $mailer;
+        $this->logger = $logger;
+        $this->mailerLogger = $mailerLogger;
+        $this->validator = $validator;
+        $this->frontendUrl = $frontendUrl;
+    }    
 
     /**
      * Register a new user.
@@ -41,7 +49,7 @@ class AuthController extends AbstractController
             /** @var array<string,mixed> $data */
             $data = $request->toArray();
         } catch (\Throwable $e) {
-            $this->logger->warning('Register: invalid JSON', ['exception' => $e->getMessage()]);
+            $this->mailerLogger->warning('Register: invalid JSON', ['exception' => $e->getMessage()]);
 
             return $this->json(['error' => 'Invalid JSON body'], Response::HTTP_BAD_REQUEST);
         }
@@ -57,7 +65,7 @@ class AuthController extends AbstractController
         $firstName = \is_scalar($rawFirst) ? \trim((string) $rawFirst) : null;
         $lastName = \is_scalar($rawLast) ? \trim((string) $rawLast) : null;
 
-        $this->logger->info('Register payload received', [
+        $this->mailerLogger->info('Register payload received', [
             'payload' => $data,
             'parsed' => ['email' => $email, 'firstName' => $firstName, 'lastName' => $lastName],
         ]);
@@ -82,7 +90,7 @@ class AuthController extends AbstractController
 
         $token = \bin2hex(\random_bytes(16));
         $user->setConfirmationToken($token);
-        $this->logger->info('Register token generated', ['email' => $email, 'token' => $token]);
+        $this->mailerLogger->info('Register token generated', ['email' => $email, 'token' => $token]);
 
         // Validation
         $violations = $this->validator->validate($user);
@@ -129,14 +137,12 @@ class AuthController extends AbstractController
 
             $dsn = getenv('MAILER_DSN') ?: 'not-set';
             $masked = preg_replace('#^(.*://)[^@]+@#', '$1****:****@', $dsn);
-            $this->logger->info('mailer:attempt', [
-                'dsn_masked' => substr((string) getenv('MAILER_DSN'), 0, 60).'...'
-            ], ['channel' => 'mailer']);
+            $this->mailerLogger->info('mailer:attempt', ['dsn_masked' => substr((string) getenv('MAILER_DSN'), 0, 120).'...']);
 
             $this->mailer->send($emailMessage);
-            $this->logger->info('mailer:sent', ['to' => $email], ['channel' => 'mailer']);
+            $this->mailerLogger->info('mailer:sent', ['to' => $email], ['channel' => 'mailer']);
         } catch (\Throwable $e) {
-            $this->logger->error('mailer:failed', ['exception' => $e->getMessage()], ['channel' => 'mailer']);
+            $this->mailerLogger->error('mailer:failed', ['exception' => $e->getMessage()], ['channel' => 'mailer']);
         }        
 
         return $this->json([
@@ -153,10 +159,10 @@ class AuthController extends AbstractController
     public function confirm(Request $request): JsonResponse
     {
         $token = $request->query->get('token');
-        $this->logger->info('Confirm called', ['token' => $token]);
+        $this->mailerLogger->info('Confirm called', ['token' => $token]);
 
         if (!$token) {
-            $this->logger->warning('Confirm: missing token');
+            $this->mailerLogger->warning('Confirm: missing token');
 
             return $this->json(['error' => 'Token manquant'], Response::HTTP_BAD_REQUEST);
         }
@@ -166,13 +172,13 @@ class AuthController extends AbstractController
         $user = $repo->findOneBy(['confirmationToken' => $token]);
 
         if (!$user) {
-            $this->logger->info('Confirm: token not found', ['token' => $token]);
+            $this->mailerLogger->info('Confirm: token not found', ['token' => $token]);
 
             return $this->json(['error' => 'Token invalide, veuillez vérifier votre boîte mail'], Response::HTTP_BAD_REQUEST);
         }
 
         if ($user->isConfirmed()) {
-            $this->logger->info('Confirm: token already used', ['userId' => $user->getId()]);
+            $this->mailerLogger->info('Confirm: token already used', ['userId' => $user->getId()]);
 
             return $this->json(['message' => 'Compte déjà confirmé'], Response::HTTP_OK);
         }
@@ -181,7 +187,7 @@ class AuthController extends AbstractController
         $user->setConfirmationToken(null);
         $this->em->flush();
 
-        $this->logger->info('Confirm: success', ['userId' => $user->getId()]);
+        $this->mailerLogger->info('Confirm: success', ['userId' => $user->getId()]);
 
         return $this->json(['message' => 'Compte confirmé. Vous pouvez maintenant vous connecter.'], Response::HTTP_OK);
     }
@@ -238,7 +244,7 @@ class AuthController extends AbstractController
                 ->text("Merci de confirmer votre compte : $confirmUrl");
             $this->mailer->send($emailMessage);
         } catch (\Throwable $e) {
-            $this->logger->error('Failed to send confirmation email', ['exception' => $e->getMessage()]);
+            $this->mailerLogger->error('Failed to send confirmation email', ['exception' => $e->getMessage()]);
         }
 
         return $this->json(['message' => 'Un e-mail de confirmation a été renvoyé si l’adresse existe.'], Response::HTTP_OK);
