@@ -1,4 +1,3 @@
-// src/pages/Dashboard.jsx
 import '../styles/Dashboard.css';
 
 import React, { useState, useEffect, useContext, useCallback } from 'react';
@@ -34,6 +33,16 @@ export default function Dashboard({
 }) {
   const { token } = useContext(AuthContext) || {};
   const TOTAL_SLOTS = 15;
+
+  // --- helper: render avatar panel with dev badge (CSS-based)
+  const AvatarWithDevBadge = ({ children }) => (
+    <div className="avatar-dev-wrapper">
+      <div className="dev-badge" aria-hidden>
+        En cours de développement
+      </div>
+      {children}
+    </div>
+  );
 
   const parseLayoutToSections = useCallback((layout) => {
     if (!layout || !Array.isArray(layout.rows)) {
@@ -441,7 +450,9 @@ export default function Dashboard({
             <div className="section-sidebar">
               {demoOnlyAvatar ? (
                 <div style={{ padding: 10 }}>
-                  <AvatarInfoPanel data={avatarData} onEditAvatar={() => {}} />
+                  <AvatarWithDevBadge>
+                    <AvatarInfoPanel data={avatarData} onEditAvatar={() => { }} />
+                  </AvatarWithDevBadge>
                 </div>
               ) : (
                 <>
@@ -463,7 +474,9 @@ export default function Dashboard({
                     {activeTab === 'sections' ? (
                       <div style={{ padding: 10 }}>Aperçu — lecture seule</div>
                     ) : (
-                      <AvatarInfoPanel data={avatarData} onEditAvatar={() => {}} />
+                      <AvatarWithDevBadge>
+                        <AvatarInfoPanel data={avatarData} onEditAvatar={() => { }} />
+                      </AvatarWithDevBadge>
                     )}
                   </div>
                 </>
@@ -528,7 +541,9 @@ export default function Dashboard({
                     onAddSection={handleAddSection}
                   />
                 ) : (
-                  <AvatarInfoPanel data={avatarData} onEditAvatar={() => setAvatarEditing(true)} />
+                  <AvatarWithDevBadge>
+                    <AvatarInfoPanel data={avatarData} onEditAvatar={() => setAvatarEditing(true)} />
+                  </AvatarWithDevBadge>
                 )}
               </div>
             </div>

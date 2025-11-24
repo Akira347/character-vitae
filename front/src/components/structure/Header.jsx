@@ -208,7 +208,7 @@ export default function Header() {
 
   useEffect(() => {
     const controller = new AbortController();
-    loadCharacters(null, controller.signal).catch(() => {});
+    loadCharacters(null, controller.signal).catch(() => { });
     return () => controller.abort();
   }, [loadCharacters]);
 
@@ -411,7 +411,7 @@ export default function Header() {
       <Navbar expand="lg" className="px-3">
         <Container fluid className="d-flex align-items-center">
           <Navbar.Brand as={Link} to="/" className="brand-logo me-auto">
-            Character Vitae
+            Character Vitae v0.8
           </Navbar.Brand>
 
           <Nav className="ms-auto align-items-center">

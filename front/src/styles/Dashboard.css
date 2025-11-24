@@ -225,7 +225,7 @@ h3,
     position: relative;
   }
 
-  .dashboard-sections > *:nth-child(3)::after {
+  .dashboard-sections>*:nth-child(3)::after {
     content: '';
     position: absolute;
     top: 0;
@@ -303,4 +303,120 @@ h3,
 /* accent pour drag handle hidden in readonly */
 .section-container.read-only .drag-handle {
   display: none;
+}
+
+/* ========== Badge "En cours de développement" pour l'avatar ========== */
+.avatar-dev-wrapper {
+  position: relative;
+}
+
+/* visible, contrasté, non interactif */
+.dev-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background-color: #ffc107;
+  /* jaune avertissement pour visibilité */
+  color: #212529;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+  display: inline-block;
+  line-height: 1;
+  pointer-events: none;
+  /* ne gêne pas les clics sur l'avatar */
+}
+
+/* petite variante pour écrans petits (réduit la taille) */
+@media (max-width: 576px) {
+  .dev-badge {
+    top: 6px;
+    left: 6px;
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+}
+
+/* ========== Typographie & lisibilité pour le contenu des sections ==========
+   Keep titles (h5) and <strong> as before (Cinzel / bold). We only change the
+   body text inside preview and section content so large paragraphs are easy to read.
+========================================================================= */
+
+/* Preferred font: Rubik. If you include Google Fonts link, Rubik will be used.
+   Otherwise the system fallback chain will be applied. */
+.preview-body,
+.section-preview-list,
+.section-preview-list li,
+.section-preview-multi,
+.section-preview-multi .item-field,
+.item-field,
+.preview-card,
+.section-body {
+  font-family: 'Rubik', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  /* good readable size for text blocks */
+  line-height: 1.6;
+  /* more breathing room for long paragraphs */
+  color: #1f2937;
+  /* dark gray for less harsh contrast than pure black */
+  word-break: break-word;
+}
+
+/* Slightly larger for main paragraphs */
+.preview-card .preview-body>div,
+.preview-card .preview-body p {
+  font-size: 15px;
+}
+
+/* Keep strong / headings appearance unchanged but ensure they inherit the family */
+.preview-card strong,
+.section-preview-list strong,
+.item-field strong {
+  font-family: inherit;
+  font-weight: 700;
+  /* keep strong visible */
+  color: #0b1220;
+}
+
+/* Make list spacing and readability better */
+.section-preview-list {
+  padding-left: 0.9rem;
+  margin: 0;
+}
+
+.section-preview-list li {
+  margin-bottom: 0.45rem;
+}
+
+/* Multi-item blocks (array of objects) spacing */
+.section-preview-multi {
+  margin-bottom: 0.6rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.06);
+}
+
+.section-preview-multi:last-child {
+  border-bottom: none;
+}
+
+/* small helper for empty content display */
+.preview-card em {
+  color: rgba(0, 0, 0, 0.45);
+  font-style: italic;
+}
+
+/* Accessibility: ensure contrasts on dark themes remain okay if you later add themes */
+@media (prefers-contrast: more) {
+  .dev-badge {
+    box-shadow: none;
+  }
+
+  .preview-body,
+  .section-preview-list {
+    color: #111;
+  }
 }

@@ -1,4 +1,3 @@
-// src/pages/DemoPage.jsx
 import React, { useEffect, useState } from 'react';
 import { Container, Spinner, Alert } from 'react-bootstrap';
 import Dashboard from './Dashboard';
