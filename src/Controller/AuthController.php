@@ -17,6 +17,8 @@ use Symfony\Component\Mime\Email;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\Mailer\Envelope;
+use Symfony\Component\Mime\Address;
 
 #[Route('/api', name: 'api_')]
 class AuthController extends AbstractController
@@ -131,6 +133,7 @@ class AuthController extends AbstractController
             $emailMessage = (new Email())
                 ->from((string) $from)
                 ->to((string) $email)
+                ->sender((string) $from)
                 ->subject('Confirmez votre compte')
                 ->text("Merci de confirmer votre compte : $confirmUrl")
             ;
@@ -139,8 +142,19 @@ class AuthController extends AbstractController
             $masked = preg_replace('#^(.*://)[^@]+@#', '$1****:****@', $dsn);
             $this->mailerLogger->info('mailer:attempt', ['dsn_masked' => substr((string) getenv('MAILER_DSN'), 0, 120).'...']);
 
-            $this->mailer->send($emailMessage);
-            $this->mailerLogger->info('mailer:sent', ['to' => $email], ['channel' => 'mailer']);
+            // forcer l'envelope (MAIL FROM) sur l'adresse authentifiée
+            $envelope = new Envelope(
+                new Address((string) $from), // MAIL FROM (return-path)
+                [new Address((string) $email)] // recipients (TO)
+            );
+
+            $this->mailer->send($emailMessage, $envelope);
+            // after $this->mailer->send(...)
+            $this->mailerLogger->info('mailer:sent', [
+                'to' => $email,
+                'message_id' => $emailMessage->getMessageId(),
+                'envelope' => $envelope ? (string) $envelope->getSender() : null,
+            ], ['channel' => 'mailer']);  
         } catch (\Throwable $e) {
             $this->mailerLogger->error('mailer:failed', ['exception' => $e->getMessage()], ['channel' => 'mailer']);
         }        
