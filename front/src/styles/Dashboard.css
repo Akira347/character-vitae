@@ -225,7 +225,7 @@ h3,
     position: relative;
   }
 
-  .dashboard-sections>*:nth-child(3)::after {
+  .dashboard-sections > *:nth-child(3)::after {
     content: '';
     position: absolute;
     top: 0;
@@ -355,7 +355,15 @@ h3,
 .item-field,
 .preview-card,
 .section-body {
-  font-family: 'Rubik', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    'Rubik',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
   font-weight: 400;
   font-size: 14px;
   /* good readable size for text blocks */
@@ -367,7 +375,7 @@ h3,
 }
 
 /* Slightly larger for main paragraphs */
-.preview-card .preview-body>div,
+.preview-card .preview-body > div,
 .preview-card .preview-body p {
   font-size: 15px;
 }

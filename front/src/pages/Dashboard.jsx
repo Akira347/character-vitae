@@ -451,7 +451,7 @@ export default function Dashboard({
               {demoOnlyAvatar ? (
                 <div style={{ padding: 10 }}>
                   <AvatarWithDevBadge>
-                    <AvatarInfoPanel data={avatarData} onEditAvatar={() => { }} />
+                    <AvatarInfoPanel data={avatarData} onEditAvatar={() => {}} />
                   </AvatarWithDevBadge>
                 </div>
               ) : (
@@ -475,7 +475,7 @@ export default function Dashboard({
                       <div style={{ padding: 10 }}>Aperçu — lecture seule</div>
                     ) : (
                       <AvatarWithDevBadge>
-                        <AvatarInfoPanel data={avatarData} onEditAvatar={() => { }} />
+                        <AvatarInfoPanel data={avatarData} onEditAvatar={() => {}} />
                       </AvatarWithDevBadge>
                     )}
                   </div>
@@ -542,7 +542,10 @@ export default function Dashboard({
                   />
                 ) : (
                   <AvatarWithDevBadge>
-                    <AvatarInfoPanel data={avatarData} onEditAvatar={() => setAvatarEditing(true)} />
+                    <AvatarInfoPanel
+                      data={avatarData}
+                      onEditAvatar={() => setAvatarEditing(true)}
+                    />
                   </AvatarWithDevBadge>
                 )}
               </div>
