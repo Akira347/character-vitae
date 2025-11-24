@@ -8,7 +8,6 @@ use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -17,18 +16,22 @@ use Symfony\Component\Mime\Email;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
-use Symfony\Component\Mailer\Envelope;
-use Symfony\Component\Mime\Address;
 
 #[Route('/api', name: 'api_')]
 class AuthController extends AbstractController
 {
+    private EntityManagerInterface $em;
+    private UserPasswordHasherInterface $passwordHasher;
+    private MailerInterface $mailer;
+    private LoggerInterface $logger;
+    private ValidatorInterface $validator;
+    private string $frontendUrl;
+
     public function __construct(
         EntityManagerInterface $em,
         UserPasswordHasherInterface $passwordHasher,
         MailerInterface $mailer,
         LoggerInterface $logger,
-        LoggerInterface $mailerLogger,
         ValidatorInterface $validator,
         string $frontendUrl,
     ) {
@@ -36,14 +39,10 @@ class AuthController extends AbstractController
         $this->passwordHasher = $passwordHasher;
         $this->mailer = $mailer;
         $this->logger = $logger;
-        $this->mailerLogger = $mailerLogger;
         $this->validator = $validator;
         $this->frontendUrl = $frontendUrl;
-    }    
+    }
 
-    /**
-     * Register a new user.
-     */
     #[Route('/register', name: 'register', methods: ['POST'])]
     public function register(Request $request): JsonResponse
     {
@@ -51,12 +50,11 @@ class AuthController extends AbstractController
             /** @var array<string,mixed> $data */
             $data = $request->toArray();
         } catch (\Throwable $e) {
-            $this->mailerLogger->warning('Register: invalid JSON', ['exception' => $e->getMessage()]);
+            $this->logger->warning('Register: invalid JSON');
 
             return $this->json(['error' => 'Invalid JSON body'], Response::HTTP_BAD_REQUEST);
         }
 
-        // extract safely
         $rawEmail = $data['email'] ?? null;
         $rawPassword = $data['password'] ?? null;
         $rawFirst = $data['firstName'] ?? ($data['first_name'] ?? null);
@@ -66,11 +64,6 @@ class AuthController extends AbstractController
         $plainPassword = \is_scalar($rawPassword) ? (string) $rawPassword : null;
         $firstName = \is_scalar($rawFirst) ? \trim((string) $rawFirst) : null;
         $lastName = \is_scalar($rawLast) ? \trim((string) $rawLast) : null;
-
-        $this->mailerLogger->info('Register payload received', [
-            'payload' => $data,
-            'parsed' => ['email' => $email, 'firstName' => $firstName, 'lastName' => $lastName],
-        ]);
 
         if (!$email || !$plainPassword) {
             return $this->json(['error' => 'Missing credentials'], Response::HTTP_BAD_REQUEST);
@@ -86,13 +79,11 @@ class AuthController extends AbstractController
             ->setFirstName($firstName)
             ->setLastName($lastName)
             ->setRoles(['ROLE_USER'])
-            ->setIsConfirmed(false)
-        ;
-        $user->setPassword($this->passwordHasher->hashPassword($user, (string) $plainPassword));
+            ->setIsConfirmed(false);
 
+        $user->setPassword($this->passwordHasher->hashPassword($user, $plainPassword));
         $token = \bin2hex(\random_bytes(16));
         $user->setConfirmationToken($token);
-        $this->mailerLogger->info('Register token generated', ['email' => $email, 'token' => $token]);
 
         // Validation
         $violations = $this->validator->validate($user);
@@ -105,59 +96,40 @@ class AuthController extends AbstractController
                 ];
             }
 
-            return $this->json([
-                'message' => 'Validation failed',
-                'violations' => $errors,
-            ], 422);
+            return $this->json(['message' => 'Validation failed', 'violations' => $errors], 422);
         }
 
         $this->em->persist($user);
         $this->em->flush();
 
-        // Build confirm URL BEFORE try/catch
         $confirmUrl = \rtrim($this->frontendUrl, '/').'/confirm?token='.\urlencode($token);
 
-        // Determine 'from' address safely (avoid calling container methods that don't exist in test container)
+        // from param fallback
         $from = 'noreply@example.com';
         try {
-            $param = $this->getParameter('mailer_from'); // may throw ParameterNotFoundException
+            $param = $this->getParameter('mailer_from');
             if (\is_scalar($param) && (string) $param !== '') {
                 $from = (string) $param;
             }
         } catch (\InvalidArgumentException $e) {
-            // parameter not set -> keep default
+            // keep default
         }
 
-        // Try to send confirmation email
+        // Try to send confirmation email (best-effort)
         try {
             $emailMessage = (new Email())
-                ->from((string) $from)
-                ->to((string) $email)
-                ->sender((string) $from)
+                ->from($from)
+                ->to($email)
                 ->subject('Confirmez votre compte')
-                ->text("Merci de confirmer votre compte : $confirmUrl")
-            ;
+                ->text("Merci de confirmer votre compte : $confirmUrl");
 
-            $dsn = getenv('MAILER_DSN') ?: 'not-set';
-            $masked = preg_replace('#^(.*://)[^@]+@#', '$1****:****@', $dsn);
-            $this->mailerLogger->info('mailer:attempt', ['dsn_masked' => substr((string) getenv('MAILER_DSN'), 0, 120).'...']);
-
-            // forcer l'envelope (MAIL FROM) sur l'adresse authentifiée
-            $envelope = new Envelope(
-                new Address((string) $from), // MAIL FROM (return-path)
-                [new Address((string) $email)] // recipients (TO)
-            );
-
-            $this->mailer->send($emailMessage, $envelope);
-            // after $this->mailer->send(...)
-            $this->mailerLogger->info('mailer:sent', [
-                'to' => $email,
-                'message_id' => $emailMessage->getMessageId(),
-                'envelope' => $envelope ? (string) $envelope->getSender() : null,
-            ], ['channel' => 'mailer']);  
+            $this->mailer->send($emailMessage);
+            // do not call $emailMessage->getMessageId() here — not reliable across transports
+            $this->logger->info('Confirmation email dispatched', ['to' => $email]);
         } catch (\Throwable $e) {
-            $this->mailerLogger->error('mailer:failed', ['exception' => $e->getMessage()], ['channel' => 'mailer']);
-        }        
+            // keep user creation even if mail fails
+            $this->logger->error('Failed to send confirmation email', ['exception' => $e->getMessage()]);
+        }
 
         return $this->json([
             'id' => $user->getId(),
@@ -168,16 +140,11 @@ class AuthController extends AbstractController
         ], Response::HTTP_CREATED);
     }
 
-    // ... confirm(), resendConfirmation(), me() unchanged except using $this->mailer and same safe mailer_from logic
     #[Route('/confirm', name: 'confirm_user', methods: ['GET'])]
     public function confirm(Request $request): JsonResponse
     {
         $token = $request->query->get('token');
-        $this->mailerLogger->info('Confirm called', ['token' => $token]);
-
         if (!$token) {
-            $this->mailerLogger->warning('Confirm: missing token');
-
             return $this->json(['error' => 'Token manquant'], Response::HTTP_BAD_REQUEST);
         }
 
@@ -186,22 +153,16 @@ class AuthController extends AbstractController
         $user = $repo->findOneBy(['confirmationToken' => $token]);
 
         if (!$user) {
-            $this->mailerLogger->info('Confirm: token not found', ['token' => $token]);
-
             return $this->json(['error' => 'Token invalide, veuillez vérifier votre boîte mail'], Response::HTTP_BAD_REQUEST);
         }
 
         if ($user->isConfirmed()) {
-            $this->mailerLogger->info('Confirm: token already used', ['userId' => $user->getId()]);
-
             return $this->json(['message' => 'Compte déjà confirmé'], Response::HTTP_OK);
         }
 
         $user->setIsConfirmed(true);
         $user->setConfirmationToken(null);
         $this->em->flush();
-
-        $this->mailerLogger->info('Confirm: success', ['userId' => $user->getId()]);
 
         return $this->json(['message' => 'Compte confirmé. Vous pouvez maintenant vous connecter.'], Response::HTTP_OK);
     }
@@ -239,26 +200,25 @@ class AuthController extends AbstractController
 
         $confirmUrl = \rtrim($this->frontendUrl, '/').'/confirm?token='.\urlencode($token);
 
-        // Determine 'from' address in a safe way (getParameter may throw if missing)
         $from = 'noreply@example.com';
         try {
-            $param = $this->getParameter('mailer_from'); // may throw InvalidArgumentException
+            $param = $this->getParameter('mailer_from');
             if (\is_scalar($param) && (string) $param !== '') {
                 $from = (string) $param;
             }
         } catch (\InvalidArgumentException $e) {
-            // parameter not set -> keep default
+            // keep default
         }
 
         try {
             $emailMessage = (new Email())
-                ->from((string) $from)
-                ->to((string) $email)
+                ->from($from)
+                ->to($email)
                 ->subject('Confirmez votre compte')
                 ->text("Merci de confirmer votre compte : $confirmUrl");
             $this->mailer->send($emailMessage);
         } catch (\Throwable $e) {
-            $this->mailerLogger->error('Failed to send confirmation email', ['exception' => $e->getMessage()]);
+            $this->logger->error('Failed to send confirmation email', ['exception' => $e->getMessage()]);
         }
 
         return $this->json(['message' => 'Un e-mail de confirmation a été renvoyé si l’adresse existe.'], Response::HTTP_OK);
