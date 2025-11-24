@@ -8,7 +8,7 @@
         "ext-ctype": "*",
         "ext-iconv": "*",
         "api-platform/doctrine-orm": "4.1.23",
-        "api-platform/serializer": "^4.2",
+        "api-platform/serializer": "4.1.11",
         "api-platform/symfony": "^4.1.27",
         "doctrine/dbal": "^3.10.3",
         "doctrine/doctrine-bundle": "^2.18",

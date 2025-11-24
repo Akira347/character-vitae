@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4f4a31da035f7262ae520126bb4e1b7b",
+    "content-hash": "180e42e8a7a251f2b029dc80c3e6e222",
     "packages": [
         {
             "name": "api-platform/doctrine-common",
@@ -754,20 +754,20 @@
         },
         {
             "name": "api-platform/serializer",
-            "version": "v4.2.0",
+            "version": "v4.1.11",
             "source": {
                 "type": "git",
                 "url": "https://github.com/api-platform/serializer.git",
-                "reference": "8c94416556df14fd20203975d000c0213a308e2d"
+                "reference": "cb156d799d0c719f295f45d75eb8681df8dd9ee2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/api-platform/serializer/zipball/8c94416556df14fd20203975d000c0213a308e2d",
-                "reference": "8c94416556df14fd20203975d000c0213a308e2d",
+                "url": "https://api.github.com/repos/api-platform/serializer/zipball/cb156d799d0c719f295f45d75eb8681df8dd9ee2",
+                "reference": "cb156d799d0c719f295f45d75eb8681df8dd9ee2",
                 "shasum": ""
             },
             "require": {
-                "api-platform/metadata": "^4.1.16",
+                "api-platform/metadata": "^4.1.11",
                 "api-platform/state": "^4.1.11",
                 "php": ">=8.2",
                 "symfony/property-access": "^6.4 || ^7.0",
@@ -785,7 +785,6 @@
                 "phpspec/prophecy-phpunit": "^2.2",
                 "phpunit/phpunit": "11.5.x-dev",
                 "symfony/mercure-bundle": "*",
-                "symfony/type-info": "^7.3",
                 "symfony/var-dumper": "^6.4 || ^7.0",
                 "symfony/yaml": "^6.4 || ^7.0"
             },
@@ -804,9 +803,7 @@
                 },
                 "branch-alias": {
                     "dev-3.4": "3.4.x-dev",
-                    "dev-4.1": "4.1.x-dev",
-                    "dev-4.2": "4.2.x-dev",
-                    "dev-main": "4.3.x-dev"
+                    "dev-main": "4.2.x-dev"
                 }
             },
             "autoload": {
@@ -841,9 +838,9 @@
                 "serializer"
             ],
             "support": {
-                "source": "https://github.com/api-platform/serializer/tree/v4.2.0"
+                "source": "https://github.com/api-platform/serializer/tree/v4.1.11"
             },
-            "time": "2025-09-15T13:20:40+00:00"
+            "time": "2025-05-22T13:13:55+00:00"
         },
         {
             "name": "api-platform/state",
